@@ -1,6 +1,6 @@
-# Term-rpg-rs
+# SSH Colony
 
-Term-rpg-rs is ment to be a colony simulation game a lot like Dwarf fortress
+SSH Colony is ment to be a colony simulation game a lot like Dwarf fortress
 with the twist of the worlds being much more hostile and I want to put the
 enphisis on combat and survival more so then casual building and story telling.
 
@@ -15,6 +15,7 @@ enphisis on combat and survival more so then casual building and story telling.
 - Unix
     - Libc
 - Windows
+    - WinAPI
 
 # Game Play Specifications
 
