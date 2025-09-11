@@ -1,4 +1,4 @@
-use crate::engine::{self, input::{Event, KeyEvent, MouseEvent, OtherEvent}, render::{insert_plain_text, ObjectPos}, Scene};
+use crate::engine::{self, Event, KeyEvent, render::{insert_plain_text, ObjectPos}, Scene};
 use crate::scenes::Game;
 
 use std::{marker::PhantomData, sync::mpsc};
@@ -21,8 +21,8 @@ impl<T: Scene<T>> Scene<T> for MainMenu<T> {
         
     }
     fn update (&mut self, delta_time: f32, 
-        event: &mpsc::Receiver<crate::engine::input::Event>,
-        render_tx: &std::sync::mpsc::Sender<crate::engine::RenderMsg>) -> engine::Signal<T>{
+        event: &mpsc::Receiver<Event>,
+        render_tx: &mpsc::Sender<engine::RenderMsg>) -> engine::Signal<T>{
             for e in event.try_iter() {
                 match e {
                     Event::Keyboard(e) => {

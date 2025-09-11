@@ -1,14 +1,12 @@
-use crate::{engine::{
-    render::{insert_object, ObjectPos}, StaticObject
-}, scenes::Game};
-
 use super::{
-    AudioMsg, Context, Error, RenderMsg, consts,
-    input::{Event, InputBuffer, KeyEvent, consts::CLEAR_BUFFER, poll_event},
-    render::{
-        Canvas, DynamicObject, Object, colors, insert_plain_text, render_msg_disbatch, sprites,
-    },
-    term::{self, Terminal, set_term},
+    AudioMsg,
+    Context,
+    Error,
+    RenderMsg,
+    consts,
+    input::{ Event, InputBuffer, CLEAR_BUFFER, poll_event },
+    render::{ self, Canvas, Object, render_msg_disbatch },
+    term::{ self, Terminal, set_term }
 };
 
 use std::{
@@ -23,15 +21,17 @@ use std::{
 pub struct Instance<T: Scene<T>> {
     ctx: Context,
     term_orig: Terminal,
-    game_state: Vec<T>
+    game_state: Vec<T>,
+    canvas: Canvas
 }
 
 impl<T: Scene<T>> Instance<T> {
-    pub fn new(init_scene: T) -> Self {
+    pub fn new(init_scene: T, canvas: Canvas) -> Self {
         Self{
             ctx: Context::new(),
             term_orig: Terminal::default(),
-            game_state: vec![init_scene]
+            game_state: vec![init_scene],
+            canvas: canvas
         }
     }
     pub fn add_scene(&mut self, s: T) {
@@ -44,7 +44,8 @@ impl<T: Scene<T>> Default for Instance<T> {
         Self {
             ctx: Context::new(),
             term_orig: Terminal::default(),
-            game_state: vec![]
+            game_state: vec![],
+            canvas: Canvas { width: 30, height: 30 }
         }
     }
 }
@@ -257,7 +258,7 @@ mod test {
     use super::Context;
     use std::sync::mpsc;
     use std::thread::spawn;
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
 
     #[test]
     fn render_pipline() {
@@ -276,7 +277,7 @@ mod test {
         });
         let _ = tx.send(RenderMsg::Insert(
             ObjectPos { x: 1, y: 1 },
-            crate::engine::Object::Dynamic(
+            render::Object::Dynamic(
                 DynamicObject::new(
                     vec![
                         String::from("\x1b[34mX"),
@@ -301,6 +302,6 @@ mod test {
             }));
         }
         root.cancel();
-        dbg!(h.join());
+        let _ = h.join();
     }
 }

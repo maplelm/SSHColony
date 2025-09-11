@@ -1,5 +1,5 @@
 #![allow(unused,)]
-use crate::engine::{self, Scene};
+use crate::engine::{self, Scene, Event};
 use super::Game;
 use std::{marker::PhantomData, sync::mpsc};
 
@@ -34,7 +34,7 @@ impl<T: Scene<T>> Scene<T> for Settings<T> {
     fn update(
             &mut self,
             delta_time: f32,
-            event: &mpsc::Receiver<crate::engine::input::Event>,
+            event: &mpsc::Receiver<Event>,
             render_tx: &std::sync::mpsc::Sender<crate::engine::RenderMsg>,
         ) -> engine::Signal<T> {
             engine::Signal::None

@@ -1,5 +1,5 @@
 use std::error;
-use super::input::core::Event;
+use super::input::Event;
 
 #[derive(Debug)]
 pub enum Error {

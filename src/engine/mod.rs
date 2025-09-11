@@ -1,29 +1,25 @@
-pub mod core;
+mod core;
 pub use core::*;
 
-pub mod error;
+mod error;
 pub use error::Error;
 
-pub mod context;
+mod context;
 pub use context::Context;
 
 pub mod render;
-pub use render::{
-    Object,
-    RenderMsg,
-    StaticObject,
-    DynamicObject,
-};
+pub use render::RenderMsg;
 
-pub mod audio;
+mod audio;
 pub use audio::AudioMsg;
 
 pub mod consts;
 
-pub mod terminal;
+mod terminal;
 #[cfg(unix)]
 pub use terminal::unix as term;
 #[cfg(windows)]
 pub use terminal::windows as term;
 
-pub mod input;
+mod input;
+pub use input::*;

@@ -32,7 +32,7 @@ impl<T: Scene<T>> Scene<T> for InGame<T> {
     fn update(
             &mut self,
             delta_time: f32,
-            event: &mpsc::Receiver<crate::engine::input::Event>,
+            event: &mpsc::Receiver<engine::Event>,
             render_tx: &std::sync::mpsc::Sender<crate::engine::RenderMsg>,
         ) -> engine::Signal<T> {
             engine::Signal::None

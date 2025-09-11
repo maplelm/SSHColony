@@ -1,7 +1,8 @@
-pub mod consts;
+mod consts;
 pub use consts::*;
 
-pub mod core;
+mod core;
 pub use core::*;
+
 #[cfg(windows)]
 pub use core::windows::*;
