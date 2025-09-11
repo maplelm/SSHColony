@@ -80,10 +80,7 @@ pub fn run<T: Scene<T>>(mut ins: Instance<T>) -> Result<(), Error> {
     let _render = spawn(move || {
         render(
             render_ctx,
-            Canvas {
-                width: consts::CANVAS_WIDTH,
-                height: consts::CANVAS_HEIGHT,
-            },
+            Canvas{ width: ins.canvas.width, height: ins.canvas.height},
             render_rx,
         )
     });
