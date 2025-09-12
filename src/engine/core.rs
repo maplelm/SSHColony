@@ -1,12 +1,8 @@
 use super::{
-    AudioMsg,
-    Context,
-    Error,
-    RenderMsg,
-    consts,
-    input::{ Event, InputBuffer, CLEAR_BUFFER, poll_event },
-    render::{ self, Canvas, Object, render_msg_disbatch },
-    term::{ self, Terminal, set_term }
+    AudioMsg, Context, Error, RenderMsg, consts,
+    input::{CLEAR_BUFFER, Event, InputBuffer, poll_event},
+    render::{self, Canvas, Object, render_msg_disbatch},
+    term::{self, Terminal, set_term},
 };
 
 use std::{
@@ -22,16 +18,16 @@ pub struct Instance<T: Scene<T>> {
     ctx: Context,
     term_orig: Terminal,
     game_state: Vec<T>,
-    canvas: Canvas
+    canvas: Canvas,
 }
 
 impl<T: Scene<T>> Instance<T> {
     pub fn new(init_scene: T, canvas: Canvas) -> Self {
-        Self{
+        Self {
             ctx: Context::new(),
             term_orig: Terminal::default(),
             game_state: vec![init_scene],
-            canvas: canvas
+            canvas: canvas,
         }
     }
     pub fn add_scene(&mut self, s: T) {
@@ -45,7 +41,10 @@ impl<T: Scene<T>> Default for Instance<T> {
             ctx: Context::new(),
             term_orig: Terminal::default(),
             game_state: vec![],
-            canvas: Canvas { width: 30, height: 30 }
+            canvas: Canvas {
+                width: 30,
+                height: 30,
+            },
         }
     }
 }
@@ -80,13 +79,22 @@ pub fn run<T: Scene<T>>(mut ins: Instance<T>) -> Result<(), Error> {
     let _render = spawn(move || {
         render(
             render_ctx,
-            Canvas{ width: ins.canvas.width, height: ins.canvas.height},
+            Canvas {
+                width: ins.canvas.width,
+                height: ins.canvas.height,
+            },
             render_rx,
         )
     });
 
     let mut end_frame: Instant = Instant::now();
     let mut dt: Duration = Duration::from_millis(16);
+    let l = ins.game_state.len() -1;
+    if let Some(state) = ins.game_state.get_mut(l){
+        if !state.is_init() {
+            state.init(&render_tx);
+        }
+    }
     while ins.ctx.is_alive() {
         if let Err(e) = update(&mut ins, dt.as_secs_f32(), &input_rx, &render_tx) {
             ins.ctx.cancel();
@@ -157,17 +165,33 @@ fn update<T: Scene<T>>(
     reciever: &mpsc::Receiver<Event>,
     render_send: &mpsc::Sender<RenderMsg>,
 ) -> Result<(), Error> {
-    let index = ins.game_state.len()-1;
+    let mut signals = None;
+    let index = ins.game_state.len() - 1;
     if let Some(state) = ins.game_state.get_mut(index) {
-        match state.update(delta_time, reciever, render_send){
-            Signal::None => {}
-            Signal::Quit => ins.ctx.cancel(),
-            Signal::NewScene(s) => ins.game_state.push(s),
-            Signal::TerminalState(t) => ins.term_orig = t
+        signals = Some(state.update(delta_time, reciever, render_send));
+    }
+    if let Some(signals) = signals {
+        signal_dispatch(ins, signals, render_send);
+    }
+
+    Ok(())
+}
+
+fn signal_dispatch<T: Scene<T>>(ins: &mut Instance<T>, signal: Signal<T>, render_tx: &mpsc::Sender<RenderMsg>) {
+    match signal {
+        Signal::None => {}
+        Signal::Quit => ins.ctx.cancel(),
+        Signal::NewScene(mut s) => {
+            s.init(render_tx);
+            ins.game_state.push(s)
+        },
+        Signal::TerminalState(t) => ins.term_orig = t,
+        Signal::Batch(mut v) => {
+                while v.len() > 0 {
+                signal_dispatch(ins, v.remove(0), render_tx);
+            }
         }
     }
-    
-    Ok(())
 }
 
 fn render(ctx: Context, canvas: Canvas, reciever: mpsc::Receiver<RenderMsg>) -> Result<(), Error> {
@@ -175,33 +199,44 @@ fn render(ctx: Context, canvas: Canvas, reciever: mpsc::Receiver<RenderMsg>) -> 
     let mut buff_t: Vec<Option<Rc<RefCell<Object>>>> = Vec::with_capacity(canvas_area);
     let mut dyn_t: Vec<Weak<RefCell<Object>>> = Vec::with_capacity(canvas_area);
     buff_t.resize(canvas_area, None);
+    let mut dirty: bool = true;
 
     while ctx.is_alive() {
         for msg in reciever.try_iter() {
+            dirty = true;
             render_msg_disbatch(msg, &canvas, &mut buff_t, &mut dyn_t);
         }
 
         // Clear invalid weak refs and updating dynamic objects
+        let l = dyn_t.len();
         dyn_t.retain(|x| x.upgrade().is_some());
+        if dyn_t.len() != l {
+            dirty = true;
+        }
         for obj in dyn_t.iter() {
             let obj = obj.upgrade().unwrap();
             let mut obj = obj.borrow_mut();
             let obj = obj.as_dynamic().unwrap();
-            obj.update();
+            if obj.update() {
+                dirty = true;
+            }
         }
 
         // Print to Screen
-        let mut output = String::new();
-        for (i, each) in buff_t.iter().enumerate() {
-            let x: usize = i % canvas.width;
-            let y: usize = i / canvas.width;
-            if let Some(each) = each {
-                output.push_str(&format!("\x1b[{};{}f{}", y, x, each.borrow().sprite()));
-            } else {
-                output.push_str(&format!("\x1b[{};{}f\x1b[0m ", y, x));
+        if dirty {
+            let mut output = String::new();
+            for (i, each) in buff_t.iter().enumerate() {
+                let x: usize = (i % canvas.width) + 1;
+                let y: usize = (i / canvas.width) + 1;
+                if let Some(each) = each {
+                    output.push_str(&format!("\x1b[{};{}f{}", y, x, each.borrow().sprite()));
+                } else {
+                    output.push_str(&format!("\x1b[{};{}f\x1b[0m ", y, x));
+                }
             }
+            print!("{}", output);
+            dirty = false;
         }
-        print!("{}", output);
         std::thread::sleep(Duration::from_millis(5));
     }
 
@@ -231,20 +266,22 @@ pub trait Scene<T: Scene<T>> {
         event: &mpsc::Receiver<Event>,
         render_tx: &mpsc::Sender<RenderMsg>,
     ) -> Signal<T>;
-    fn init(&mut self);
+    fn init(&mut self, render_tx: &mpsc::Sender<RenderMsg>);
+    fn is_init(&self) -> bool;
     fn suspend(&mut self);
     fn resume(&mut self);
     fn is_paused(&self) -> bool;
     fn reset(&mut self);
 }
 
+#[derive(Clone)]
 pub enum Signal<T: Scene<T>> {
     None,
     Quit,
     NewScene(T),
-    TerminalState(Terminal)
+    TerminalState(Terminal),
+    Batch(Vec<Signal<T>>)
 }
-
 
 #[cfg(test)]
 mod test {
@@ -288,15 +325,17 @@ mod test {
         ));
         for _ in 0..10 {
             std::thread::sleep(Duration::from_millis(500));
-            let _ = tx.send(RenderMsg::Move(ObjectMove {
-                old: ObjectPos { x: 1, y: 1 },
-                new: ObjectPos { x: 5, y: 5 },
-            }));
+            let _ = tx.send(RenderMsg::Swap(
+                    ObjectPos { x: 1, y: 1 },
+                    ObjectPos { x: 5, y: 5 },
+                )
+            );
             std::thread::sleep(Duration::from_millis(500));
-            let _ = tx.send(RenderMsg::Move(ObjectMove {
-                old: ObjectPos { x: 5, y: 5 },
-                new: ObjectPos { x: 1, y: 1 },
-            }));
+            let _ = tx.send(RenderMsg::Swap(
+                    ObjectPos { x: 5, y: 5 },
+                    ObjectPos { x: 1, y: 1 },
+                )
+            );
         }
         root.cancel();
         let _ = h.join();

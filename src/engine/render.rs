@@ -30,7 +30,7 @@ pub enum RenderMsg {
     InsertText(ObjectPos, Sprite, SpritePrefix, SpriteSufix),
     Remove(ObjectPos),
     RemoveRange(ObjectPos, ObjectPos),
-    Move(ObjectMove),
+    Swap(ObjectPos, ObjectPos),
     Batch(Vec<RenderMsg>),
     Clear,
 }
@@ -58,6 +58,7 @@ pub struct DynamicObject {
     last_tick: Instant,
 }
 
+#[derive(Eq, PartialEq, Debug)]
 pub struct ObjectPos {
     pub x: u32,
     pub y: u32,
@@ -130,7 +131,8 @@ impl DynamicObject {
         return &self.sprite[self.cursor];
     }
 
-    pub fn update(&mut self) {
+    // Returns true of update changes the sprite
+    pub fn update(&mut self) -> bool {
         if Instant::now().duration_since(self.last_tick) >= self.tick {
             if self.cursor == self.sprite.len() - 1 {
                 self.cursor = 0;
@@ -138,7 +140,9 @@ impl DynamicObject {
                 self.cursor += 1;
             }
             self.last_tick = Instant::now();
+            return true;
         }
+        return false;
     }
 }
 
@@ -196,9 +200,11 @@ pub fn render_msg_disbatch(
             }
         }
         RenderMsg::InsertText(pos, s, prefix, sufix) => {
-            for (i, each) in s.chars().enumerate() {
+            let mut y: usize = pos.y as usize;
+            let mut x: usize = pos.x as usize;
+            for each in s.chars() {
                 if each == ' ' {
-                    obj_buff[pos.y as usize * canvas.width + pos.x as usize + i] = None;
+                    obj_buff[y * canvas.width + x] = None;
                 } else {
                     let mut sprite = String::from(each);
                     if let Some(prefix) = &prefix {
@@ -207,10 +213,16 @@ pub fn render_msg_disbatch(
                     if let Some(sufix) = &sufix {
                         sprite.push_str(sufix);
                     }
-                    obj_buff[pos.y as usize * canvas.width + pos.x as usize + i] =
+                    obj_buff[y * canvas.width + x] =
                         Some(Rc::new(RefCell::new(Object::Static(StaticObject {
                             sprite: sprite,
                         }))));
+                }
+                if each == '\n' {
+                    y += 1;
+                    x = pos.x as usize;
+                } else {
+                    x += 1;
                 }
             }
         }
@@ -225,10 +237,10 @@ pub fn render_msg_disbatch(
                 }
             }
         }
-        RenderMsg::Move(mov) => {
+        RenderMsg::Swap(a, b) => {
             obj_buff.swap(
-                mov.old.y as usize * canvas.width + mov.old.x as usize,
-                mov.new.y as usize * canvas.height + mov.new.x as usize,
+                a.y as usize * canvas.width + a.x as usize,
+                b.y as usize * canvas.height + b.x as usize,
             );
         }
         RenderMsg::Clear => {
