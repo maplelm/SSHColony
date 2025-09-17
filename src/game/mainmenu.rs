@@ -1,25 +1,35 @@
 use super::Game;
-use crate::engine::{
-    self, render::{insert_plain_text, ObjectPos, RenderMsg}, ui::{Border, Menu, MenuItem, UIElement}, Event, KeyEvent, Scene, Signal
+use crate::{
+    engine::{
+        self, Event, KeyEvent, Signal,
+        render::{self, insert_text},
+        types::Position,
+        ui::{Border, Menu, MenuItem, UIElement},
+    },
+    game::{InGame, Settings},
 };
 
 enum Signals {
-    Quit
+    Quit,
+    NewScene(Game),
 }
 
-use std::{io::Write, marker::PhantomData, sync::mpsc};
+use std::{io::Write, sync::mpsc};
 
 pub struct MainMenu {
-    //menu: ui::Menu<u32>,
     menu: Menu<MainMenu, Signals>,
     init_complete: bool,
-    //_marker: PhantomData<T>,
 }
 
 impl MainMenu {
-
-    pub fn init(&mut self, render_tx: &mpsc::Sender<RenderMsg>) {
-        let _ = render_tx.send(RenderMsg::InsertText(ObjectPos { x: self.menu.x(), y: self.menu.y() }, self.menu.output(), None, None)); 
+    pub fn init(&mut self, render_tx: &mpsc::Sender<render::Msg>) {
+        let _ = render_tx.send(render::Msg::InsertText {
+            pos: Position::new(self.menu.x(), self.menu.y()),
+            text: self.menu.output(),
+            prefix: None,
+            suffix: None,
+        });
+        let _ = render_tx.send(render::Msg::Prefix(String::from("\x1b[43m")));
         self.init_complete = true;
     }
 
@@ -36,15 +46,19 @@ impl MainMenu {
                 vec![
                     MenuItem {
                         label: String::from("Play"),
-                        action: |g: &MainMenu| -> Option<Signals> { None },
+                        action: |_g: &MainMenu| -> Option<Signals> {
+                            Some(Signals::NewScene(InGame::new()))
+                        },
                     },
                     MenuItem {
                         label: String::from("Settings"),
-                        action: |g: &MainMenu| -> Option<Signals> { None },
+                        action: |_g: &MainMenu| -> Option<Signals> {
+                            Some(Signals::NewScene(Settings::new()))
+                        },
                     },
                     MenuItem {
                         label: String::from("Quit"),
-                        action: |g: &MainMenu| -> Option<Signals> { Some(Signals::Quit) },
+                        action: |_g: &MainMenu| -> Option<Signals> { Some(Signals::Quit) },
                     },
                 ],
             ),
@@ -53,9 +67,9 @@ impl MainMenu {
     }
     pub fn update(
         &mut self,
-        delta_time: f32,
+        _delta_time: f32,
         event: &mpsc::Receiver<Event>,
-        render_tx: &mpsc::Sender<engine::RenderMsg>,
+        render_tx: &mpsc::Sender<render::Msg>,
     ) -> engine::Signal<Game> {
         let mut signals: Vec<Signal<Game>> = vec![];
         for e in event.try_iter() {
@@ -64,10 +78,9 @@ impl MainMenu {
                     KeyEvent::Char('q') => {
                         return engine::Signal::Quit;
                     }
-                    KeyEvent::Char('e') => {
-                    }
+                    KeyEvent::Char('e') => {}
                     KeyEvent::Char('B') => {
-                        let _ = insert_plain_text(1, 1, "Term RPG".to_string(), render_tx);
+                        let _ = render::insert_text(1, 1, "Term RPG".to_string(), render_tx);
                     }
                     KeyEvent::Up | KeyEvent::Char('w') => {
                         let pre_pos = self.menu.cursor_pos();
@@ -76,14 +89,18 @@ impl MainMenu {
                         #[cfg(debug_assertions)]
                         {
                             let mut file = std::fs::OpenOptions::new()
-                                .create(true)   // create if it doesn’t exist
-                                .append(true)   // always write at end
-                                .open("output.log").unwrap();
+                                .create(true) // create if it doesn’t exist
+                                .append(true) // always write at end
+                                .open("output.log")
+                                .unwrap();
                             let data = format!("Pre: {:?}  Post: {:?}\n\r", pre_pos, post_pos);
-                            file.write_all(data.as_bytes());
+                            let _ = file.write_all(data.as_bytes());
                         }
                         if pre_pos.x != post_pos.x || pre_pos.y != post_pos.y {
-                            let _ = render_tx.send(RenderMsg::Batch(vec![RenderMsg::Remove(pre_pos), RenderMsg::Insert(post_pos, self.menu.marker_object())]));
+                            let _ = render_tx.send(render::Msg::Batch(vec![
+                                render::Msg::Remove(pre_pos),
+                                render::Msg::Insert(post_pos, self.menu.marker_object().unwrap()),
+                            ]));
                         }
                     }
                     KeyEvent::Down | KeyEvent::Char('s') => {
@@ -93,33 +110,39 @@ impl MainMenu {
                         #[cfg(debug_assertions)]
                         {
                             let mut file = std::fs::OpenOptions::new()
-                                .create(true)   // create if it doesn’t exist
-                                .append(true)   // always write at end
-                                .open("output.log").unwrap();
+                                .create(true) // create if it doesn’t exist
+                                .append(true) // always write at end
+                                .open("output.log")
+                                .unwrap();
                             let data = format!("Pre: {:?}  Post: {:?}\n\r", pre_pos, post_pos);
-                            file.write_all(data.as_bytes());
+                            let _ = file.write_all(data.as_bytes());
                         }
                         if pre_pos != post_pos {
-                            let _ = render_tx.send(RenderMsg::Batch(vec![RenderMsg::Remove(pre_pos), RenderMsg::Insert(post_pos, self.menu.marker_object())]));
-                            //let _ = render_tx.send(RenderMsg::Swap(pre_pos, post_pos));
+                            let _ = render_tx.send(render::Msg::Batch(vec![
+                                render::Msg::Remove(pre_pos),
+                                render::Msg::Insert(post_pos, self.menu.marker_object().unwrap()),
+                            ]));
                         }
                     }
-                    KeyEvent::Right | KeyEvent::Char('d')=> {
+                    KeyEvent::Right | KeyEvent::Char('d') => {
                         if let Some(output) = self.menu.execute(self) {
                             match output {
                                 Signals::Quit => {
                                     signals.push(engine::Signal::Quit);
                                 }
+                                Signals::NewScene(s) => {
+                                    signals.push(engine::Signal::NewScene(s));
+                                }
                             }
                         }
                     }
                     KeyEvent::Char('c') => {
-                        let _ = render_tx.send(RenderMsg::InsertText(
-                            ObjectPos { x: 5, y: 5 },
-                            "This\nIs\nSparta".to_string(),
-                            None,
-                            None,
-                        ));
+                        let _ = render_tx.send(render::Msg::InsertText {
+                            pos: Position::new(5, 5),
+                            text: "This\nIs\nSparta".to_string(),
+                            prefix: None,
+                            suffix: None,
+                        });
                     }
                     _ => {}
                 },
@@ -136,6 +159,11 @@ impl MainMenu {
         false
     }
     pub fn reset(&mut self) {}
-    pub fn resume(&mut self) {}
-    pub fn suspend(&mut self) {}
+    pub fn resume(&mut self, render_tx: &mpsc::Sender<render::Msg>) {
+        let _ = insert_text(self.menu.x(), self.menu.y(), self.menu.output(), render_tx);
+        let _ = render_tx.send(render::Msg::Prefix(String::from("\x1b[43m")));
+    }
+    pub fn suspend(&mut self, render_tx: &mpsc::Sender<render::Msg>) {
+        let _ = render_tx.send(render::Msg::Prefix(String::new()));
+    }
 }

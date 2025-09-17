@@ -1,0 +1,52 @@
+[
+    (
+        common: (
+            flags: 1,
+            name: "dwarf",
+            max_inventory_weight: 10,
+            stats: (
+                matrix: [
+                    (
+                        name: "Health",
+                        max: 10,
+                        current: 10,
+                    ),
+                    (
+                        name: "Mana",
+                        max: 10,
+                        current: 10,
+                    )
+                ],
+            ),
+        ),
+        kind: Creature(
+            kind: Dwarf,
+            state: Idle,
+        ),
+    ),
+    (
+        common: (
+            flags: 0,
+            name: "Human",
+            max_inventory_weight: 10,
+            stats: (
+                matrix: [
+                    (
+                        name: "Health",
+                        max: 10,
+                        current: 10,
+                    ),
+                    (
+                        name: "Mana",
+                        max: 10,
+                        current: 10,
+                    )
+                ],
+            ),
+        ),
+        kind: Creature(
+            kind: Dwarf,
+            state: Idle,
+        ),
+    ),
+]

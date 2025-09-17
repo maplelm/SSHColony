@@ -1,14 +1,14 @@
 use std::fmt::Display;
 
 pub struct Padding {
-    pub top: u32,
-    pub bottom: u32,
-    pub right: u32,
-    pub left: u32,
+    pub top: usize,
+    pub bottom: usize,
+    pub right: usize,
+    pub left: usize,
 }
 
 impl Padding {
-    pub fn square(s: u32) -> Self {
+    pub fn square(s: usize) -> Self {
         Self {
             top: s,
             bottom: s,
@@ -17,7 +17,7 @@ impl Padding {
         }
     }
 
-    pub fn rectangle(w: u32, l: u32) -> Self {
+    pub fn rectangle(w: usize, l: usize) -> Self {
         Self {
             top: l,
             bottom: l,

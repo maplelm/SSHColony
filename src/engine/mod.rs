@@ -8,7 +8,6 @@ mod context;
 pub use context::Context;
 
 pub mod render;
-pub use render::RenderMsg;
 
 mod audio;
 pub use audio::AudioMsg;
@@ -25,3 +24,5 @@ mod input;
 pub use input::*;
 
 pub mod ui;
+
+pub mod types;

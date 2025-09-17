@@ -1,0 +1,14 @@
+(
+	materials: [
+	(
+	name: "Limestone",
+	opacity: 1.0,
+	ductility: 0.0,
+	density: 2.1, // g/cm^3
+	),
+	(),
+	(),
+	(),
+	()
+	],
+)

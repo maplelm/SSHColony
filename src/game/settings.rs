@@ -1,5 +1,5 @@
 #![allow(unused,)]
-use crate::engine::{self, Scene, Event, render::RenderMsg};
+use crate::engine::{self, render, Event, Scene};
 use super::Game;
 use std::{marker::PhantomData, sync::mpsc};
 
@@ -16,8 +16,10 @@ impl Settings {
 }
 
 impl Settings {
-    pub fn init(&mut self, render_tx: &mpsc::Sender<RenderMsg>) {
-        
+    pub fn init(&mut self, render_tx: &mpsc::Sender<render::Msg>) {
+       render_tx.send(render::Msg::Clear);
+       render::insert_text(1, 1, "Settings!".to_string(), render_tx); 
+       self.init_complete = true;
     }
     pub fn is_init(&self) -> bool {
         return self.init_complete;
@@ -38,8 +40,27 @@ impl Settings {
             &mut self,
             delta_time: f32,
             event: &mpsc::Receiver<Event>,
-            render_tx: &std::sync::mpsc::Sender<crate::engine::RenderMsg>,
+            render_tx: &std::sync::mpsc::Sender<crate::engine::render::Msg>,
         ) -> engine::Signal<Game> {
-            engine::Signal::None
+            let mut signals: Vec<engine::Signal<Game>> = vec![]; 
+            for each in event.try_iter() {
+                match each {
+                    Event::Keyboard(k) => {
+                        match k {
+                            engine::KeyEvent::Char('q') => signals.push(engine::Signal::PopScene),
+                            _ => {}
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            if signals.len() == 0 {
+                return engine::Signal::None;
+            } else if signals.len() == 1  {
+                return signals.remove(0);
+            } else {
+                return engine::Signal::Batch(signals);
+            }
+
     }
 }

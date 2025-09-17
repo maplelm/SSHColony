@@ -1,47 +1,0 @@
-Pre: ObjectPos { x: 3, y: 3 }  Post: ObjectPos { x: 3, y: 4 }
-Pre: ObjectPos { x: 3, y: 4 }  Post: ObjectPos { x: 3, y: 3 }
-Pre: ObjectPos { x: 3, y: 3 }  Post: ObjectPos { x: 3, y: 4 }
-Pre: ObjectPos { x: 3, y: 4 }  Post: ObjectPos { x: 3, y: 3 }
-Pre: ObjectPos { x: 3, y: 3 }  Post: ObjectPos { x: 3, y: 4 }
-Pre: ObjectPos { x: 3, y: 4 }  Post: ObjectPos { x: 3, y: 3 }
-Pre: ObjectPos { x: 3, y: 3 }  Post: ObjectPos { x: 3, y: 4 }
-Pre: ObjectPos { x: 3, y: 4 }  Post: ObjectPos { x: 3, y: 3 }
-Pre: ObjectPos { x: 3, y: 3 }  Post: ObjectPos { x: 3, y: 4 }
-Pre: ObjectPos { x: 3, y: 4 }  Post: ObjectPos { x: 3, y: 5 }
-Pre: ObjectPos { x: 3, y: 5 }  Post: ObjectPos { x: 3, y: 4 }
-Pre: ObjectPos { x: 3, y: 4 }  Post: ObjectPos { x: 3, y: 3 }
-Pre: ObjectPos { x: 3, y: 3 }  Post: ObjectPos { x: 3, y: 4 }
-Pre: ObjectPos { x: 3, y: 4 }  Post: ObjectPos { x: 3, y: 5 }
-Pre: ObjectPos { x: 3, y: 5 }  Post: ObjectPos { x: 3, y: 4 }
-Pre: ObjectPos { x: 3, y: 4 }  Post: ObjectPos { x: 3, y: 3 }
-Pre: ObjectPos { x: 3, y: 3 }  Post: ObjectPos { x: 3, y: 4 }
-Pre: ObjectPos { x: 3, y: 4 }  Post: ObjectPos { x: 3, y: 5 }
-Pre: ObjectPos { x: 3, y: 3 }  Post: ObjectPos { x: 3, y: 4 }
-Pre: ObjectPos { x: 3, y: 4 }  Post: ObjectPos { x: 3, y: 5 }
-Pre: ObjectPos { x: 3, y: 5 }  Post: ObjectPos { x: 3, y: 4 }
-Pre: ObjectPos { x: 3, y: 4 }  Post: ObjectPos { x: 3, y: 3 }
-Pre: ObjectPos { x: 3, y: 3 }  Post: ObjectPos { x: 3, y: 4 }
-Pre: ObjectPos { x: 3, y: 4 }  Post: ObjectPos { x: 3, y: 5 }
-Pre: ObjectPos { x: 3, y: 3 }  Post: ObjectPos { x: 3, y: 4 }
-Pre: ObjectPos { x: 3, y: 4 }  Post: ObjectPos { x: 3, y: 5 }
-Pre: ObjectPos { x: 3, y: 5 }  Post: ObjectPos { x: 3, y: 4 }
-Pre: ObjectPos { x: 3, y: 4 }  Post: ObjectPos { x: 3, y: 3 }
-Pre: ObjectPos { x: 3, y: 3 }  Post: ObjectPos { x: 3, y: 4 }
-Pre: ObjectPos { x: 3, y: 4 }  Post: ObjectPos { x: 3, y: 5 }
-Pre: ObjectPos { x: 3, y: 5 }  Post: ObjectPos { x: 3, y: 4 }
-Pre: ObjectPos { x: 3, y: 4 }  Post: ObjectPos { x: 3, y: 3 }
-Pre: ObjectPos { x: 3, y: 3 }  Post: ObjectPos { x: 3, y: 4 }
-Pre: ObjectPos { x: 3, y: 4 }  Post: ObjectPos { x: 3, y: 5 }
-Pre: ObjectPos { x: 3, y: 5 }  Post: ObjectPos { x: 3, y: 5 }
-Pre: ObjectPos { x: 3, y: 5 }  Post: ObjectPos { x: 3, y: 5 }
-Pre: ObjectPos { x: 3, y: 5 }  Post: ObjectPos { x: 3, y: 5 }
-Pre: ObjectPos { x: 3, y: 5 }  Post: ObjectPos { x: 3, y: 4 }
-Pre: ObjectPos { x: 3, y: 4 }  Post: ObjectPos { x: 3, y: 3 }
-Pre: ObjectPos { x: 3, y: 3 }  Post: ObjectPos { x: 3, y: 3 }
-Pre: ObjectPos { x: 3, y: 3 }  Post: ObjectPos { x: 3, y: 3 }
-Pre: ObjectPos { x: 3, y: 3 }  Post: ObjectPos { x: 3, y: 3 }
-Pre: ObjectPos { x: 3, y: 3 }  Post: ObjectPos { x: 3, y: 4 }
-Pre: ObjectPos { x: 3, y: 4 }  Post: ObjectPos { x: 3, y: 5 }
-Pre: ObjectPos { x: 3, y: 5 }  Post: ObjectPos { x: 3, y: 4 }
-Pre: ObjectPos { x: 3, y: 4 }  Post: ObjectPos { x: 3, y: 5 }
-

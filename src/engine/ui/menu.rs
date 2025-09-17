@@ -1,5 +1,6 @@
 use super::{Border, UIElement};
-use crate::engine::render::{Object, ObjectPos, StaticObject};
+use crate::engine::render;
+use crate::engine::types::Position;
 use crate::engine::Scene;
 
 pub struct Item<I, O> {
@@ -8,8 +9,8 @@ pub struct Item<I, O> {
 }
 
 pub struct Menu<I, O> {
-    x: u32,
-    y: u32,
+    x: usize,
+    y: usize,
     pub border: Option<Border<char>>,
     pub label_style: Option<String>,
     pub marker_style: Option<String>,
@@ -21,8 +22,8 @@ pub struct Menu<I, O> {
 
 impl<I, O> Menu<I, O> {
     pub fn new(
-        x: u32,
-        y: u32,
+        x: usize,
+        y: usize,
         border: Option<Border<char>>,
         items: Vec<Item<I, O>>,
     ) -> Self {
@@ -38,32 +39,23 @@ impl<I, O> Menu<I, O> {
         }
     }
 
-    pub fn x(&self) -> u32 { self.x}
-    pub fn y(&self) -> u32 { self.y}
+    pub fn x(&self) -> usize { self.x}
+    pub fn y(&self) -> usize { self.y}
 
     pub fn execute(&self, s: &I) -> Option<O> {
         (self.items[self.cursor].action)(s)
     }
 
-    pub fn cursor_pos(&self) -> ObjectPos {
+    pub fn cursor_pos(&self) -> Position<usize> {
         match &self.border {
-            None => {
-                return ObjectPos{
-                    x: self.x,
-                    y: self.y + self.cursor as u32
-                };
-            }
-            Some(b) => {
-                return ObjectPos{
-                    x: self.x + 1 + b.padding.left,
-                    y: self.y + 1 + b.padding.top + self.cursor as u32
-                };
-            }
+            None => Position::new(self.x, self.y + self.cursor),
+            
+            Some(b) => Position::new(self.x + 1 + b.padding.left, self.y + 1 + b.padding.top + self.cursor)
         }
     }
 
-    pub fn marker_object(&self) -> Object {
-        Object::Static(StaticObject::new(&String::from(self.marker)).unwrap())
+    pub fn marker_object(&self) -> Option<render::Object> {
+        render::Object::new_static(String::from(self.marker))
     }
 
     pub fn get_width(&self) -> Option<usize> {
