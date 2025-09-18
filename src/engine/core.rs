@@ -249,14 +249,16 @@ fn render(
             for (i, each) in buff_t.iter().enumerate() {
                 let x: usize = (i % canvas.width) + 1;
                 let y: usize = (i / canvas.width) + 1;
+                let end: &str = if x == canvas.width {"\x1b[0m"} else {""};
                 if let Some(each) = each {
                     output.push_str(&format!(
-                        "\x1b[{};{}f{}{}{}",
+                        "\x1b[{};{}f{}{}{}{}",
                         y,
                         x,
                         prefix,
                         each.borrow().sprite(),
-                        suffix
+                        suffix,
+                        end
                     ));
                 } else {
                     output.push_str(&format!("\x1b[{};{}f ", y, x));

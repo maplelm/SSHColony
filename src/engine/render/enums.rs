@@ -11,9 +11,11 @@ use crate::engine::types as enginetypes;
 )]
 pub enum Object {
     Static {
+        name: Option<String>,
         sprite: Sprite,
     },
     Dynamic {
+        name: Option<String>,
         sprite: Vec<Sprite>,
         tick: Duration,
         #[serde(skip_serializing, skip_deserializing, default = "Object::new_cursor")]
@@ -26,11 +28,21 @@ pub enum Object {
 impl enginetypes::StoreItem for Object {
     type Key = String;
     fn key(&self) -> Self::Key {
-        "d".to_string()
+        match self.name() {
+            Some(n) => n.clone(),
+            None => "".to_string()
+        }
     }
 }
 
 impl Object {
+
+    pub fn name(&self) -> &Option<String> {
+        match self {
+            Object::Static { name, ..} => name,
+            Object::Dynamic {name, ..} => name
+        }
+    }
     fn new_cursor() -> usize {
         0
     }
@@ -66,12 +78,12 @@ impl Object {
     pub fn sprite(&self) -> &str {
         match self {
             Object::Dynamic { sprite, cursor, .. } => &(sprite[*cursor]),
-            Object::Static { sprite } => &sprite,
+            Object::Static { sprite, .. } => &sprite,
         }
     }
     pub fn new_static(s: Sprite) -> Option<Object> {
         if s.len() > 0 {
-            return Some(Object::Static { sprite: s });
+            return Some(Object::Static { sprite: s , name: None});
         }
         return None;
     }
@@ -82,6 +94,7 @@ impl Object {
             }
         }
         return Some(Object::Dynamic {
+            name: None,
             sprite: s,
             cursor: 0,
             tick: tick,
@@ -103,6 +116,7 @@ impl Object {
                 last_tick,
                 cursor,
                 tick,
+                ..
             } => {
                 let now = Instant::now();
                 if now.duration_since(*last_tick) >= *tick {

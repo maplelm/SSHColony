@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 
-#[derive(Debug, Serialize, Deserialize)]
+pub type MaterialID = u32;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Common {
     pub name: String,
     // Physical Traits
@@ -21,7 +23,7 @@ pub struct Common {
     pub electrical_charge: f32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum State {
     Solid {
         hardness: f32,
@@ -44,7 +46,7 @@ pub enum State {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Material {
     pub common: Common,
     pub state: State,

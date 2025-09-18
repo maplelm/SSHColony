@@ -1,10 +1,7 @@
 #![allow(dead_code, unused)]
-use super::{
-    core::{EntityID, MaterialID},
-    liquid::{self, Liquid},
-};
+use super::{EntityID, MaterialID};
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Tile {
     pub flags: u16,
     pub ocupency: Option<EntityID>,
@@ -31,14 +28,14 @@ impl Tile {
     }
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum StairDirection {
     Up,
     Down,
     Both,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Shape {
     Floor,
     Wall,  // refined with a nice surface

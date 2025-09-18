@@ -1,52 +1,36 @@
 [
     (
-        common: (
-            flags: 1,
-            name: "dwarf",
-            max_inventory_weight: 10,
-            stats: (
-                matrix: [
-                    (
-                        name: "Health",
-                        max: 10,
-                        current: 10,
-                    ),
-                    (
-                        name: "Mana",
-                        max: 10,
-                        current: 10,
-                    )
-                ],
-            ),
-        ),
+        passable: true,
+        storable: false,
+        name: "dwarf",
+        max_inventory_weight: Some(10),
+        base_stats: {
+            "Health": (level: 1, level_scaling: 5),
+            "Mana": (level: 1, level_scaling: 2),
+            "Mining": (level: 1, level_scaling: 7),
+            "Hunger": (level: 1, level_scaling: 1),
+            "Thirst": (level: 1, level_scaling: 1),
+        }
         kind: Creature(
             kind: Dwarf,
             state: Idle,
         ),
     ),
     (
-        common: (
-            flags: 0,
-            name: "Human",
-            max_inventory_weight: 10,
-            stats: (
-                matrix: [
-                    (
-                        name: "Health",
-                        max: 10,
-                        current: 10,
-                    ),
-                    (
-                        name: "Mana",
-                        max: 10,
-                        current: 10,
-                    )
-                ],
-            ),
-        ),
-        kind: Creature(
-            kind: Dwarf,
-            state: Idle,
-        ),
+        passable: true,
+        storable: false,
+        name: "Human",
+        max_inventory_weight: Some(20),
+        base_stats: {
+            "Health": (level: 1, level_scaling: 4),
+            "Mana": (level: 1, level_scaling: 10),
+            "Mining": (level: 1, level_scaling: 3),
+            "Hunger": (level: 1, level_scaling: 1),
+            "Thirst": (level: 1, level_scaling: 1),
+        },
+    kind: Creature(
+        kind: Human,
+        state: Idle,
+    ),
     ),
 ]

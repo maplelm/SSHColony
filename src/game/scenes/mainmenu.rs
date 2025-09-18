@@ -1,4 +1,3 @@
-use super::Game;
 use crate::{
     engine::{
         self, Event, KeyEvent, Signal,
@@ -6,7 +5,7 @@ use crate::{
         types::Position,
         ui::{Border, Menu, MenuItem, UIElement},
     },
-    game::{InGame, Settings},
+    game::{Game, LoadGame, Settings},
 };
 
 enum Signals {
@@ -47,7 +46,7 @@ impl MainMenu {
                     MenuItem {
                         label: String::from("Play"),
                         action: |_g: &MainMenu| -> Option<Signals> {
-                            Some(Signals::NewScene(InGame::new()))
+                            Some(Signals::NewScene(LoadGame::new()))
                         },
                     },
                     MenuItem {
@@ -84,43 +83,19 @@ impl MainMenu {
                     }
                     KeyEvent::Up | KeyEvent::Char('w') => {
                         let pre_pos = self.menu.cursor_pos();
-                        self.menu.cursor_up(1);
-                        let post_pos = self.menu.cursor_pos();
-                        #[cfg(debug_assertions)]
-                        {
-                            let mut file = std::fs::OpenOptions::new()
-                                .create(true) // create if it doesn’t exist
-                                .append(true) // always write at end
-                                .open("output.log")
-                                .unwrap();
-                            let data = format!("Pre: {:?}  Post: {:?}\n\r", pre_pos, post_pos);
-                            let _ = file.write_all(data.as_bytes());
-                        }
-                        if pre_pos.x != post_pos.x || pre_pos.y != post_pos.y {
+                        if self.menu.cursor_up(1) {
                             let _ = render_tx.send(render::Msg::Batch(vec![
                                 render::Msg::Remove(pre_pos),
-                                render::Msg::Insert(post_pos, self.menu.marker_object().unwrap()),
+                                render::Msg::Insert(self.menu.cursor_pos(), self.menu.marker_object().unwrap()),
                             ]));
                         }
                     }
                     KeyEvent::Down | KeyEvent::Char('s') => {
                         let pre_pos = self.menu.cursor_pos();
-                        self.menu.cursor_down(1);
-                        let post_pos = self.menu.cursor_pos();
-                        #[cfg(debug_assertions)]
-                        {
-                            let mut file = std::fs::OpenOptions::new()
-                                .create(true) // create if it doesn’t exist
-                                .append(true) // always write at end
-                                .open("output.log")
-                                .unwrap();
-                            let data = format!("Pre: {:?}  Post: {:?}\n\r", pre_pos, post_pos);
-                            let _ = file.write_all(data.as_bytes());
-                        }
-                        if pre_pos != post_pos {
+                        if self.menu.cursor_down(1) {
                             let _ = render_tx.send(render::Msg::Batch(vec![
                                 render::Msg::Remove(pre_pos),
-                                render::Msg::Insert(post_pos, self.menu.marker_object().unwrap()),
+                                render::Msg::Insert(self.menu.cursor_pos(), self.menu.marker_object().unwrap()),
                             ]));
                         }
                     }

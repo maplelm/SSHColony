@@ -8,6 +8,15 @@ pub struct Item<I, O> {
     pub action: fn(&I) -> Option<O>,
 }
 
+impl<I, O> Item<I, O> {
+    pub fn new(l: String, a: fn (&I) -> Option<O>) -> Self {
+        Self {
+            label: l,
+            action: a
+        }
+    }
+}
+
 pub struct Menu<I, O> {
     x: usize,
     y: usize,
@@ -87,16 +96,20 @@ impl<I, O> Menu<I, O> {
         self.items.push(item);
     }
 
-    pub fn cursor_up(&mut self, amount: usize) {
+    pub fn cursor_up(&mut self, amount: usize) -> bool{
         if self.cursor as isize - amount as isize >= 0 {
             self.cursor -= amount;
+            return true; // Moved
         }
+        false // did not move
     }
 
-    pub fn cursor_down(&mut self, amount: usize) {
+    pub fn cursor_down(&mut self, amount: usize) -> bool {
         if self.cursor + amount < self.items.len() {
             self.cursor += amount;
+            return true; // Moved
         }
+        false // did not move
     }
 }
 

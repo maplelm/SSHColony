@@ -1,6 +1,8 @@
-#![allow(unused,)]
-use crate::engine::{self, render, Event, Scene};
-use super::Game;
+#![allow(unused)]
+use crate::{
+    engine::{self, render, Event, Scene},
+    game::Game
+};
 use std::{marker::PhantomData, sync::mpsc};
 
 pub struct Settings {

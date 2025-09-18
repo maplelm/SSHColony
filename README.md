@@ -4,6 +4,17 @@ SSH Colony is ment to be a colony simulation game a lot like Dwarf fortress
 with the twist of the worlds being much more hostile and I want to put the
 enphisis on combat and survival more so then casual building and story telling.
 
+# Todos
+
+- Implement enable/disable feature for menus
+- engine not properly entering alt buffer
+- engine not properly hiding and reveling cursor
+- engine not handling different sized terminals
+- need to make text box elements for world generation
+- Need to make a world generation alg
+- Need to test what I have with just a basic world. 
+    - world generation will just pop out the same very flat and small world every time with no settings.
+
 # Technical Specifications
 
 - ASCII graphics

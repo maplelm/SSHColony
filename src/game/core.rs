@@ -1,7 +1,7 @@
 #![allow(unreachable_patterns)]
 
-use super::{InGame, MainMenu, Settings};
-use crate::engine::{Scene, Signal, render};
+use super::scenes::{InGame, MainMenu, Settings, LoadGame};
+use crate::{engine::{render, Scene, Signal}};
 //use crate::engine::Scene::is_paused;
 use std::sync::mpsc;
 
@@ -9,6 +9,7 @@ pub enum Game {
     MainMenu(MainMenu),
     Settings(Settings),
     InGame(InGame),
+    LoadGame(LoadGame)
 }
 
 impl Scene<Game> for Game {
@@ -17,6 +18,7 @@ impl Scene<Game> for Game {
             Game::MainMenu(s) => s.init(render_tx),
             Game::InGame(s) => s.init(render_tx),
             Game::Settings(s) => s.init(render_tx),
+            Game::LoadGame(s) => s.init(render_tx),
         }
     }
     fn is_init(&self) -> bool {
@@ -24,6 +26,7 @@ impl Scene<Game> for Game {
             Game::MainMenu(s) => s.is_init(),
             Game::InGame(s) => s.is_init(),
             Game::Settings(s) => s.is_init(),
+            Game::LoadGame(s) => s.is_init(),
         }
     }
     fn is_paused(&self) -> bool {
@@ -39,7 +42,7 @@ impl Scene<Game> for Game {
             Game::MainMenu(s) => s.reset(),
             Game::Settings(s) => s.reset(),
             Game::InGame(s) => s.reset(),
-            _ => todo!(),
+            Game::LoadGame(s) => s.reset(),
         }
     }
     fn resume(&mut self, render_tx: &mpsc::Sender<render::Msg>) {
@@ -47,7 +50,7 @@ impl Scene<Game> for Game {
             Game::MainMenu(s) => s.resume(render_tx),
             Game::Settings(s) => s.resume(),
             Game::InGame(s) => s.resume(),
-            _ => todo!(),
+            Game::LoadGame(s) => s.resume(render_tx),
         }
     }
     fn suspend(&mut self, render_tx: &mpsc::Sender<render::Msg>) {
@@ -55,7 +58,7 @@ impl Scene<Game> for Game {
             Game::MainMenu(s) => s.suspend(render_tx),
             Game::Settings(s) => s.suspend(),
             Game::InGame(s) => s.suspend(),
-            _ => todo!(),
+            Game::LoadGame(s) => s.suspend(),
         }
     }
     fn update(
@@ -68,11 +71,7 @@ impl Scene<Game> for Game {
             Game::MainMenu(s) => s.update(delta_time, event, render_tx),
             Game::Settings(s) => s.update(delta_time, event, render_tx),
             Game::InGame(s) => s.update(delta_time, event, render_tx),
-            _ => todo!(),
+            Game::LoadGame(s) => s.update(event, render_tx),
         }
     }
 }
-
-pub type MaterialID = u32;
-//pub type SpriteID = u32;
-pub type EntityID = u32;

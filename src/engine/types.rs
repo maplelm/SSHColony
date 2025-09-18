@@ -1,7 +1,7 @@
-use std::io::Write;
+use std::io::{Read, Write};
 use std::ops::{Add, Sub, Mul, Div};
 use std::collections::HashMap;
-use std::fs::{self, File, read_dir};
+use std::fs::{self, read_dir};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::hash::Hash;
 use ron;
@@ -105,7 +105,7 @@ where T::Key: Eq + std::hash::Hash, {
                     // log that there is a malformed file path
                     continue;
                 }
-                if let Ok(file) = File::open(path.unwrap().to_string()+name.unwrap()){
+                if let Ok(file) = fs::File::open(path.unwrap().to_string()+name.unwrap()){
                         let m: Option<Vec<T>> = if let Ok(data) = ron::de::from_reader(file) { Some(data) } else {None};
                         if m.is_none() {
                             // Log about the malformed data in file
@@ -124,7 +124,7 @@ where T::Key: Eq + std::hash::Hash, {
     }
 
     pub fn from_file(file_name: &str) -> Option<Store<T>> {
-        if let Ok(f) = File::open(file_name){
+        if let Ok(f) = fs::File::open(file_name){
             let m: Option<Vec<T>> = if let Ok(data) = ron::de::from_reader(f) { Some(data) } else {None};
             if m.is_none() {
                 return None;
@@ -184,7 +184,7 @@ where T::Key: Eq + std::hash::Hash, {
     }
 
     pub fn to_file(&self, file_name: &str) -> Result<(), std::io::Error> {
-        match File::open(file_name){
+        match fs::File::open(file_name){
             Ok(mut f) => {
                 let mut s = String::new();
                 match ron::ser::to_writer_pretty(&mut s, &self.matrix, ron::ser::PrettyConfig::default()) {
@@ -195,5 +195,36 @@ where T::Key: Eq + std::hash::Hash, {
             }
             Err(e) => return Err(e)
         }
+    }
+}
+
+pub struct File {
+    pub f: fs::File
+}
+
+impl File {
+    pub fn open(path: &str, append: bool) -> Result<Self, std::io::Error> {
+        match fs::OpenOptions::new().append(append).create(true).write(true).read(true).open(path){
+            Ok(f) => Ok(Self{f: f}),
+            Err(e) => Err(e)
+        }
+    }
+}
+
+impl bincode::enc::write::Writer for File {
+    fn write(&mut self, bytes: &[u8]) -> Result<(), bincode::error::EncodeError> {
+        match self.f.write(bytes) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(bincode::error::EncodeError::Other("Failed to write bytes to file"))
+        }
+    }
+}
+
+impl bincode::de::read::Reader for File {
+    fn read(&mut self, bytes: &mut [u8]) -> Result<(), bincode::error::DecodeError> {
+        if let Err(e) = self.f.read(bytes) {
+            return Err(bincode::error::DecodeError::Io { inner: e, additional: 0 });
+       }
+       return Ok(());
     }
 }

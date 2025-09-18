@@ -7,3 +7,4 @@ edition = "2024"
 libc = "0.2"
 serde = { version = "1.0.224", features = ["derive"] }
 ron = "0.11.0"
+bincode = { version = "2.0.1", features = ["serde"] }

@@ -1,6 +1,14 @@
-use super::world::World;
-use crate::engine::{self, Scene, render};
-use crate::game::Game;
+use crate::{
+    engine::{
+        self,
+        Scene,
+        render
+    },
+    game::{
+        Game,
+        types::World
+    }
+};
 use std::{marker::PhantomData, sync::mpsc};
 pub struct InGame {
     world: World,
@@ -17,9 +25,8 @@ const DEFAULT_WORLD_SEA_LEVEL: f32 = 0.0;
 
 impl InGame {
     pub fn new() -> Game {
-        Game::InGame(Self {
-            // I eventually want to change this to consult the settings brought into the program
-            world: World::new(
+        let world = World::new(
+                "test_world".to_string(),
                 DEFAULT_WORLD_X,
                 DEFAULT_WORLD_Y,
                 DEFAULT_WORLD_Z,
@@ -29,7 +36,10 @@ impl InGame {
                 "./data/materials/",
                 "./data/entities/",
                 "./data/sprites/",
-            ),
+        );
+        Game::InGame(Self {
+            // I eventually want to change this to consult the settings brought into the program
+            world: world,
             init_complete: false,
             is_paused: false,
         })
