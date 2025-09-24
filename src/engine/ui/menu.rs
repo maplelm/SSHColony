@@ -1,7 +1,8 @@
-use super::{Border, UIElement};
-use crate::engine::render;
-use crate::engine::types::Position;
-use crate::engine::Scene;
+use super::{Border, UIElement, super::{types::*, traits::Scene, render}};
+
+///////////////////
+///  MENU ITEM  ///
+///////////////////
 
 pub struct Item<I, O> {
     pub label: String,
@@ -17,6 +18,9 @@ impl<I, O> Item<I, O> {
     }
 }
 
+//////////////
+///  MENU  ///
+//////////////
 pub struct Menu<I, O> {
     x: usize,
     y: usize,
@@ -27,6 +31,8 @@ pub struct Menu<I, O> {
 
     items: Vec<Item<I, O>>,
     cursor: usize,
+    max_per_page: u16,
+    page:u16,
 }
 
 impl<I, O> Menu<I, O> {
@@ -45,6 +51,8 @@ impl<I, O> Menu<I, O> {
             marker_style: None,
             marker: '>',
             cursor: 0,
+            max_per_page: 10,
+            page: 0,
         }
     }
 
@@ -117,6 +125,8 @@ impl<I, O> UIElement<O> for Menu<I, O> {
     fn update(&mut self) -> Option<O> {
         None
     }
+    
+    // TODO: have menu output handle borderless menus
     fn output(&self) -> String {
         match &self.border {
             None => {return String::new();}
@@ -125,70 +135,83 @@ impl<I, O> UIElement<O> for Menu<I, O> {
                 if self.items.len() == 0 {
                     return out;
                 }
-                // Top Border (##########)
-                let mut h_border = String::new();
-                for _ in 0..self.get_width().unwrap(){
-                    h_border.push(b.top);
-                }
-                out.push_str(&h_border);
-                out.push('\n');
-                // Top Padding lines ( #         #)
-                if b.padding.top > 0 {
-                    let mut h_padding = String::new();
-                    h_padding.push(b.left);
-                    for _ in 0 .. self.get_width().unwrap()-2 {
-                        h_padding.push(' ');
-                    }
-                    h_padding.push(b.right);
-                    for _ in 0..b.padding.top {
-                        out.push_str(&h_padding);
-                        out.push('\n');
-                    }
-                }
-                // Item Lines ( #  item 1  #) ( # > item 2 #
-                for (i, item) in self.items.iter().enumerate() {
-                    let mut line = String::new();
-                    line.push(b.left);
-                    if i == self.cursor {
-                        for _ in 0..b.padding.left {
-                            line.push(' ');
-                        }
-                        line.push(self.marker);
-                        line.push(' ');
-                        
-                    } else {
-                        for _ in 0..b.padding.left + 2 {
-                            line.push(' ');
-                        }
-                    }
-                    line.push_str(&item.label);
-                    for _ in 0..b.padding.right {
-                        line.push(' ');
-                    }
-                    while line.len() < self.get_width().unwrap_or(0) -1 {
-                        line.push(' ');
-                    }
-                    line.push(b.right);
-                    line.push('\n');
-                    out.push_str(&line);
-                }
-                // Bottom Padding lines ( #         #)
-                if b.padding.bottom > 0 {
-                    let mut h_padding = String::new();
-                    h_padding.push(b.left);
-                    for _ in 0 .. self.get_width().unwrap()-2 {
-                        h_padding.push(' ');
-                    }
-                    h_padding.push(b.right);
-                    for _ in 0..b.padding.top {
-                        out.push_str(&h_padding);
-                        out.push('\n');
-                    }
-                }
-                // Bottom Border (###########)
-                out.push_str(&h_border);
+                let h_border_cache = top_border_render(self, b, &mut out);
+                line_item_render(self, b, &mut out);
+                bottom_border_render(self, b, &mut out, &h_border_cache);
                 return out;
             }
         }
     }
+}
+
+
+fn top_border_render<I, O>(menu: &Menu<I, O>, b: &Border<char>, s: &mut String) -> String {
+    // Top Border
+    let mut h_border = String::new();
+    for _ in 0..menu.get_width().unwrap(){
+        h_border.push(b.top);
+    }
+    s.push_str(&h_border);
+    s.push('\n');
+    // Top Padding
+    if b.padding.top > 0 {
+        let mut h_padding = String::new();
+        h_padding.push(b.left);
+        for _ in 0 .. menu.get_width().unwrap()-2 {
+            h_padding.push(' ');
+        }
+        h_padding.push(b.right);
+        for _ in 0..b.padding.top {
+            s.push_str(&h_padding);
+            s.push('\n');
+        }
+    }
+    h_border
+}
+
+fn line_item_render<I, O>(menu: &Menu<I, O>, b: &Border<char>, s: &mut String) {
+    for (i, item) in menu.items.iter().enumerate() {
+        let mut line = String::new();
+        line.push(b.left);
+        if i == menu.cursor {
+            for _ in 0..b.padding.left {
+                line.push(' ');
+            }
+            line.push(menu.marker);
+            line.push(' ');
+            
+        } else {
+            for _ in 0..b.padding.left + 2 {
+                line.push(' ');
+            }
+        }
+        line.push_str(&item.label);
+        for _ in 0..b.padding.right {
+            line.push(' ');
+        }
+        while line.len() < menu.get_width().unwrap_or(0) -1 {
+            line.push(' ');
+        }
+        line.push(b.right);
+        line.push('\n');
+        s.push_str(&line);
+    }
+}
+
+fn bottom_border_render<I, O>(menu: &Menu<I, O>, b: &Border<char>, s: &mut String, h_border: &str) {
+    // Bottom Padding
+    if b.padding.bottom > 0 {
+        let mut h_padding = String::new();
+        h_padding.push(b.left);
+        for _ in 0 .. menu.get_width().unwrap()-2 {
+            h_padding.push(' ');
+        }
+        h_padding.push(b.right);
+        for _ in 0..b.padding.top {
+            s.push_str(&h_padding);
+            s.push('\n');
+        }
+    }
+    // Bottom Border
+    s.push_str(h_border);
 }

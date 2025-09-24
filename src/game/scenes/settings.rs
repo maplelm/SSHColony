@@ -1,6 +1,6 @@
 #![allow(unused)]
 use crate::{
-    engine::{self, render, Event, Scene},
+    engine::{self, render, input::{Event, KeyEvent}, enums::Signal, traits::Scene},
     game::Game
 };
 use std::{marker::PhantomData, sync::mpsc};
@@ -18,10 +18,12 @@ impl Settings {
 }
 
 impl Settings {
-    pub fn init(&mut self, render_tx: &mpsc::Sender<render::Msg>) {
+    pub fn init(&mut self, render_tx: &mpsc::Sender<render::Msg>) -> Signal<Game> {
        render_tx.send(render::Msg::Clear);
        render::insert_text(1, 1, "Settings!".to_string(), render_tx); 
        self.init_complete = true;
+
+       Signal::None
     }
     pub fn is_init(&self) -> bool {
         return self.init_complete;
@@ -43,13 +45,13 @@ impl Settings {
             delta_time: f32,
             event: &mpsc::Receiver<Event>,
             render_tx: &std::sync::mpsc::Sender<crate::engine::render::Msg>,
-        ) -> engine::Signal<Game> {
-            let mut signals: Vec<engine::Signal<Game>> = vec![]; 
+        ) -> Signal<Game> {
+            let mut signals: Vec<Signal<Game>> = vec![]; 
             for each in event.try_iter() {
                 match each {
                     Event::Keyboard(k) => {
                         match k {
-                            engine::KeyEvent::Char('q') => signals.push(engine::Signal::PopScene),
+                            KeyEvent::Char('q') => signals.push(Signal::PopScene),
                             _ => {}
                         }
                     }
@@ -57,11 +59,11 @@ impl Settings {
                 }
             }
             if signals.len() == 0 {
-                return engine::Signal::None;
+                return Signal::None;
             } else if signals.len() == 1  {
                 return signals.remove(0);
             } else {
-                return engine::Signal::Batch(signals);
+                return Signal::Batch(signals);
             }
 
     }

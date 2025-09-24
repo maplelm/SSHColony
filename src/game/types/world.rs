@@ -2,8 +2,9 @@
 use super::entity::{Entity, EntityTemplate};
 use super::material::Material;
 use super::tile::{self, Tile};
+use crate::engine::Error;
 use crate::engine::{
-    self, render,
+    self, render::{self, Object},
     types::{Position3D, Store, File},
 };
 use serde;
@@ -47,26 +48,24 @@ pub struct World {
 }
 
 fn world_init_sprites() -> Store<render::Object> {
-    if let Some(objs) = Store::from_dir("./data/sprites/"){
-        objs
-    } else {
-        panic!("failed to load entities from ./data/sprites/")
+    match Store::from_dir("./data/sprites/") {
+        Err(e) => panic!("world_init_sprites: {e}"),
+        Ok(s) => s,
     }
+   // panic!("failed to load entities from ./data/sprites/")
 }
 
 fn world_init_entitytemplate() -> Store<EntityTemplate> {
-    if let Some(ents) = Store::from_dir("./data/entities/"){
-        ents
-    } else {
-        panic!("failed to load entities from ./data/entities/")
+    match Store::from_dir("./data/entities/") {
+        Err(e) => panic!("world_init_entitytemplate: {e}"),
+        Ok(s) => s
     }
 }
 
 fn world_init_materials() -> Store<Material> {
-    if let Some(mats) = Store::from_dir("./data/materials/") {
-        mats
-    } else {
-        panic!("failed to load materials from ./data/materials/")
+    match Store::from_dir("./data/materials/") {
+        Err(e) => panic!("world_init_materials {e}"),
+        Ok(s) => s
     }
 }
 
@@ -82,21 +81,36 @@ impl World {
         mat_dir: &str,
         ent_dir: &str,
         spr_dir: &str,
-    ) -> Self {
+    ) -> Result<Self, Error> {
+        let mut materials: Store<Material>;
+        match Store::<Material>::from_dir(mat_dir) {
+            Err(e) => return Err(Error::IO(e)),
+            Ok(m) => materials = m,
+        }
+        let mut entities: Store<EntityTemplate>;
+        match Store::<EntityTemplate>::from_dir(ent_dir) {
+            Err(e) => return Err(Error::IO(e)),
+            Ok(e) => entities = e,
+        }
+        let mut sprites: Store<Object>;
+        match Store::<Object>::from_dir(spr_dir) {
+            Err(e) => return Err(Error::IO(e)),
+            Ok(o) => sprites = o,
+        }
         let mut world = Self {
             name: name,
             world_size: Position3D::new(x, y, z),
             avg_temp: temp,
             avg_height: height,
             sea_level: sea,
-            material_templates: Store::from_dir(mat_dir).unwrap(),
-            entity_templates: Store::from_dir(ent_dir).unwrap(),
-            sprite_templates: Store::from_dir(spr_dir).unwrap(),
+            material_templates: materials,
+            entity_templates: entities,
+            sprite_templates: sprites,
             materials: vec![],
             entities: vec![],
             tiles: Vec::with_capacity(x * y * z),
         };
-        return world;
+        return Ok(world);
     }
 
     pub fn from_file(path: &str) -> Self {
@@ -110,7 +124,7 @@ impl World {
 
     pub fn generate(&mut self, seed: Option<usize>) -> Result<(), engine::Error> {
         for index in 0..(self.world_size.x * self.world_size.y * self.world_size.z) {
-            let pos = linear_to_3d(self, index);
+            let pos = self.index_to_pos(index);
             if pos.z > 0 {
                 self.tiles
                     .push(Tile::new(0, None, None, tile::Shape::OpenSpace, 0));
@@ -134,12 +148,12 @@ impl World {
             }
     }
 
-}
+    pub fn index_to_pos(&self, mut index: usize) -> Position3D<usize> {
+        let z = index / (self.world_size.y * self.world_size.x);
+        index = index % (self.world_size.y * self.world_size.x);
+        let y = index / self.world_size.x;
+        let x = index % self.world_size.x;
+        Position3D::new(x, y, z)
+    }
 
-fn linear_to_3d(w: &World, mut index: usize) -> Position3D<usize> {
-    let z = index / (w.world_size.y * w.world_size.x);
-    index = index % (w.world_size.y * w.world_size.x);
-    let y = index / w.world_size.x;
-    let x = index % w.world_size.x;
-    Position3D::new(x, y, z)
 }

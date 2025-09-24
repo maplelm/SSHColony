@@ -20,6 +20,7 @@ pub enum KeyEvent {
 pub enum OtherEvent {
     EnterFocus,
     LeaveFocus,
+    ScreenSizeChange{width: u32, height: u32},
     Unknown(String),
 }
 
@@ -252,6 +253,7 @@ fn parse_mouse_event(seq: &[u8]) -> Option<MouseEvent> {
             match other_event {
                 OtherEvent::EnterFocus => write!(f, "Enter Focus Event"),
                 OtherEvent::LeaveFocus => write!(f, "Leave Focus Event"),
+                OtherEvent::ScreenSizeChange { width, height } => write!(f, "Screen Size changed to ({},{})", width, height),
                 OtherEvent::Unknown(s) => write!(f, "Unknown ({})", s),
             }
         },

@@ -7,7 +7,7 @@ pub enum Error {
     SendEventError(std::sync::mpsc::SendError<Event>),
     InvalidData(Box<dyn error::Error>),
     RebuildRequired(Option<Box<dyn error::Error>>),
-    NotFound(Option<Box<dyn error::Error>>),
+    NotFound(String, Option<Box<dyn error::Error>>),
     ContextError(String),
 }
 
@@ -26,13 +26,7 @@ impl std::fmt::Display for Error {
                     write!(f, "Rebuild Required")
                 }
             }
-            Error::NotFound(d) => {
-                if d.is_some() {
-                    write!(f, "Not Found: {}", d.as_ref().unwrap())
-                } else {
-                    write!(f, "Not Found")
-                }
-            }
+            Error::NotFound(s, _) => write!(f, "Not Found: {}", s),
             Error::ContextError(ctx) => write!(f, "Context Error: {}", ctx),
             Error::SendEventError(e) => e.fmt(f),
         }
@@ -46,7 +40,7 @@ impl error::Error for Error {
             Error::ContextError(_) => None,
             Error::InvalidData(d) => d.source(),
             Error::RebuildRequired(d) => if d.is_some() {d.as_ref().unwrap().source()}else{None},
-            Error::NotFound(d) => if d.is_some() {d.as_ref().unwrap().source()}else{None},
+            Error::NotFound(s, inner) => if inner.is_some() {inner.as_ref().unwrap().source()}else{None},
             Error::SendEventError(e) => e.source(),
         }
     }

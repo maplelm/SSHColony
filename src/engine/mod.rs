@@ -14,14 +14,7 @@ pub use audio::AudioMsg;
 
 pub mod consts;
 
-mod terminal;
-#[cfg(unix)]
-pub use terminal::unix as term;
-#[cfg(windows)]
-pub use terminal::windows as term;
-
-mod input;
-pub use input::*;
+pub mod input;
 
 pub mod ui;
 

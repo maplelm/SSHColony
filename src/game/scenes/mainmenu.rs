@@ -1,6 +1,6 @@
 use crate::{
     engine::{
-        self, Event, KeyEvent, Signal,
+        self, input::{Event, KeyEvent}, enums::Signal,
         render::{self, insert_text},
         types::Position,
         ui::{Border, Menu, MenuItem, UIElement},
@@ -21,7 +21,7 @@ pub struct MainMenu {
 }
 
 impl MainMenu {
-    pub fn init(&mut self, render_tx: &mpsc::Sender<render::Msg>) {
+    pub fn init(&mut self, render_tx: &mpsc::Sender<render::Msg>) -> Signal<Game> {
         let _ = render_tx.send(render::Msg::InsertText {
             pos: Position::new(self.menu.x(), self.menu.y()),
             text: self.menu.output(),
@@ -30,6 +30,8 @@ impl MainMenu {
         });
         let _ = render_tx.send(render::Msg::Prefix(String::from("\x1b[43m")));
         self.init_complete = true;
+
+        Signal::None
     }
 
     pub fn is_init(&self) -> bool {
@@ -69,13 +71,13 @@ impl MainMenu {
         _delta_time: f32,
         event: &mpsc::Receiver<Event>,
         render_tx: &mpsc::Sender<render::Msg>,
-    ) -> engine::Signal<Game> {
+    ) -> Signal<Game> {
         let mut signals: Vec<Signal<Game>> = vec![];
         for e in event.try_iter() {
             match e {
                 Event::Keyboard(e) => match e {
                     KeyEvent::Char('q') => {
-                        return engine::Signal::Quit;
+                        return Signal::Quit;
                     }
                     KeyEvent::Char('e') => {}
                     KeyEvent::Char('B') => {
@@ -103,10 +105,10 @@ impl MainMenu {
                         if let Some(output) = self.menu.execute(self) {
                             match output {
                                 Signals::Quit => {
-                                    signals.push(engine::Signal::Quit);
+                                    signals.push(Signal::Quit);
                                 }
                                 Signals::NewScene(s) => {
-                                    signals.push(engine::Signal::NewScene(s));
+                                    signals.push(Signal::NewScene(s));
                                 }
                             }
                         }
@@ -125,9 +127,9 @@ impl MainMenu {
             }
         }
         if signals.len() > 0 {
-            return engine::Signal::Batch(signals);
+            return Signal::Batch(signals);
         } else {
-            return engine::Signal::None;
+            return Signal::None;
         }
     }
     pub fn is_paused(&self) -> bool {

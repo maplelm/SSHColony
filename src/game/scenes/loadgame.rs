@@ -3,7 +3,7 @@ use std::{
     path::Path,
     fs
 };
-use crate::{engine::{self, render, KeyEvent, ui::{Border, Menu, MenuItem, UIElement}, Event, Signal}, game::Game};
+use crate::{engine::{self, enums::Signal, input::{Event, KeyEvent}, render, types::Position, ui::{Border, Menu, MenuItem, UIElement}}, game::{Game, InGame}};
 
 enum SceneSignals {
     NewWorld,
@@ -22,7 +22,7 @@ impl LoadGame {
             init_complete: false
         })
     }
-    pub fn init(&mut self, render_tx: &mpsc::Sender<render::Msg>) {
+    pub fn init(&mut self, render_tx: &mpsc::Sender<render::Msg>) -> Signal<Game> {
             render::clear(render_tx);
             let mut saves_exist: bool;
             let save_dir : &str = "./saves/";
@@ -93,7 +93,7 @@ impl LoadGame {
             self.saves_menu.add(MenuItem{
                 label: String::from("Create New World"),
                 action: |_g: &LoadGame| -> Option<SceneSignals> {
-                    None
+                    Some(SceneSignals::NewWorld)
                 }}
             );
 
@@ -112,6 +112,8 @@ impl LoadGame {
                     suffix: None 
                 }
             );
+
+            Signal::None
     }
 
     pub fn is_init(&self) -> bool {
@@ -131,14 +133,16 @@ impl LoadGame {
     }
 
     pub fn resume(&mut self, render_tx: &mpsc::Sender<render::Msg>) {
-
+        if let Err(e) = render_tx.send(render::Msg::InsertText { pos:Position{x: self.saves_menu.x(), y: self.saves_menu.y()} , text: self.saves_menu.output(), prefix: None, suffix: None }) {
+            // Log that there is a problem
+        }
     }
 
     pub fn update(&mut self, event: &mpsc::Receiver<Event>, render_tx: &mpsc::Sender<render::Msg>) -> Signal<Game> {
         for e in event.try_iter() {
             match e {
                 Event::Keyboard(key) => match key {
-                    KeyEvent::Char('q') => return engine::Signal::Quit,
+                    KeyEvent::Char('q') => return Signal::Quit,
                     KeyEvent::Char('w') => {
                         let pp = self.saves_menu.cursor_pos();
                         if self.saves_menu.cursor_up(1) {
@@ -159,7 +163,17 @@ impl LoadGame {
                             ));
                         }
                     }
-                    KeyEvent::Char('d') => {}
+                    KeyEvent::Char('d') => {
+                        if let Some(sig) = self.saves_menu.execute(self) {
+                            match sig {
+                                SceneSignals::LoadWorld => {}
+                                SceneSignals::NewWorld => match InGame::new() {
+                                    Err(e) => return Signal::Error(e),
+                                    Ok(s) => return Signal::NewScene(s),
+                                }
+                            }
+                        }
+                    }
                     _ => {}
                 }
                 _ => {}

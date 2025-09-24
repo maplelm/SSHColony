@@ -1,7 +1,9 @@
+
 use crate::{
     engine::{
+        traits::Storeable,
         render,
-        types::{Position, Position3D, Store, StoreItem},
+        types::{Position, Position3D, Store},
     },
     game::types::{Inventory, Stat, StatTemplate},
 };
@@ -130,7 +132,7 @@ pub struct EntityTemplate {
     pub kind: Kind,
 }
 
-impl StoreItem for EntityTemplate {
+impl Storeable for EntityTemplate {
     type Key = String;
     fn key(&self) -> Self::Key {
         self.name.clone()

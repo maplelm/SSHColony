@@ -10,7 +10,7 @@
             "Mining": (level: 1, level_scaling: 7),
             "Hunger": (level: 1, level_scaling: 1),
             "Thirst": (level: 1, level_scaling: 1),
-        }
+        },
         kind: Creature(
             kind: Dwarf,
             state: Idle,
@@ -28,9 +28,9 @@
             "Hunger": (level: 1, level_scaling: 1),
             "Thirst": (level: 1, level_scaling: 1),
         },
-    kind: Creature(
-        kind: Human,
-        state: Idle,
-    ),
+        kind: Creature(
+            kind: Human,
+            state: Idle,
+        ),
     ),
 ]

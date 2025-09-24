@@ -1,14 +1,24 @@
-(
-	materials: [
-	(
-	name: "Limestone",
-	opacity: 1.0,
-	ductility: 0.0,
-	density: 2.1, // g/cm^3
-	),
-	(),
-	(),
-	(),
-	()
-	],
-)
+[
+    (
+        common: (
+            name: "limestone",
+            opacity: 1.0,
+            density: 2100.0, // kg/m^3
+            heat_capacity: 840.0, // 840 kJ/kg C
+            flammability: 2100.0, // flash point
+            electrical_conductivity: 0.0,
+            electrical_impedance: 0.0,
+            electrical_field: 0.0,
+            electrical_charge: 0.0,
+        ),
+        state: Solid(
+            hardness: 0.0,
+            malleability: 0.0,
+            elasticity: 0.0,
+            plasticity: 0.0,
+            impact_resistance: 0.0,
+            ductility: 0.0,
+            melting_point: 0.0,
+        ),
+    ),
+]

@@ -1,5 +1,7 @@
 # SSH Colony
 
+> *This game is a work in progress and is in early development*
+
 SSH Colony is ment to be a colony simulation game a lot like Dwarf fortress
 with the twist of the worlds being much more hostile and I want to put the
 enphisis on combat and survival more so then casual building and story telling.
@@ -22,15 +24,10 @@ enphisis on combat and survival more so then casual building and story telling.
 - Playable over SSH
 - Written in almost raw rust
 
-## Rust Dependancies
-
-- Unix
-    - Libc
-- Windows
-    - WinAPI
-
 # Game Play Specifications
 
+- Max Temp in game 2100deg C
+    - fammability equation should be (1.0 - fashpoint / maxtemp)
 - Procedurally Generated World
 - Tile Based world
 - Each npc in the world can't be directly controled by the player
@@ -39,5 +36,5 @@ enphisis on combat and survival more so then casual building and story telling.
 - In-depth combat system
 - Defensable constructions
 
-## Game Play Loop (10-20 second player action loop)
+
 

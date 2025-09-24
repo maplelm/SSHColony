@@ -1,7 +1,7 @@
 #![allow(unreachable_patterns)]
 
 use super::scenes::{InGame, MainMenu, Settings, LoadGame};
-use crate::{engine::{render, Scene, Signal}};
+use crate::{engine::{render, traits::Scene, input::Event, enums::Signal}};
 //use crate::engine::Scene::is_paused;
 use std::sync::mpsc;
 
@@ -13,7 +13,7 @@ pub enum Game {
 }
 
 impl Scene<Game> for Game {
-    fn init(&mut self, render_tx: &mpsc::Sender<render::Msg>) {
+    fn init(&mut self, render_tx: &mpsc::Sender<render::Msg>) -> Signal<Game>{
         match self {
             Game::MainMenu(s) => s.init(render_tx),
             Game::InGame(s) => s.init(render_tx),
@@ -64,7 +64,7 @@ impl Scene<Game> for Game {
     fn update(
         &mut self,
         delta_time: f32,
-        event: &mpsc::Receiver<crate::engine::Event>,
+        event: &mpsc::Receiver<Event>,
         render_tx: &std::sync::mpsc::Sender<render::Msg>,
     ) -> Signal<Game> {
         match self {

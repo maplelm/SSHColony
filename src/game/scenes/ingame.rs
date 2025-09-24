@@ -1,12 +1,9 @@
 use crate::{
     engine::{
-        self,
-        Scene,
-        render
+        self, Error, enums::Signal, input::{Event, KeyEvent}, render, traits::Scene
     },
     game::{
-        Game,
-        types::World
+        types::World, Game
     }
 };
 use std::{marker::PhantomData, sync::mpsc};
@@ -24,8 +21,9 @@ const DEFAULT_WORLD_HEIGHT: f32 = 1.0;
 const DEFAULT_WORLD_SEA_LEVEL: f32 = 0.0;
 
 impl InGame {
-    pub fn new() -> Game {
-        let world = World::new(
+    pub fn new() -> Result<Game, Error> {
+        let mut world: World;
+        match World::new(
                 "test_world".to_string(),
                 DEFAULT_WORLD_X,
                 DEFAULT_WORLD_Y,
@@ -36,20 +34,24 @@ impl InGame {
                 "./data/materials/",
                 "./data/entities/",
                 "./data/sprites/",
-        );
-        Game::InGame(Self {
-            // I eventually want to change this to consult the settings brought into the program
+        ){
+            Err(e) => return Err(e),
+            Ok(w) => world = w,
+        }
+        Ok(Game::InGame(Self {
             world: world,
             init_complete: false,
             is_paused: false,
-        })
+        }))
     }
 }
 
 impl InGame {
-    pub fn init(&mut self, _render_tx: &mpsc::Sender<render::Msg>) {
+    pub fn init(&mut self, _render_tx: &mpsc::Sender<render::Msg>) -> Signal<Game> {
         let _ = self.world.generate(None);
         self.init_complete = true;
+
+        Signal::None
     }
     pub fn is_init(&self) -> bool {
         self.init_complete
@@ -63,9 +65,20 @@ impl InGame {
     pub fn update(
         &mut self,
         delta_time: f32,
-        event: &mpsc::Receiver<engine::Event>,
+        event: &mpsc::Receiver<Event>,
         render_tx: &std::sync::mpsc::Sender<render::Msg>,
-    ) -> engine::Signal<Game> {
-        engine::Signal::None
+    ) -> Signal<Game> {
+        for event in event.try_iter() {
+            match event {
+                Event::Keyboard(key) => {
+                    match key {
+                        KeyEvent::Char('q') => return Signal::Quit,
+                        _ => {},
+                    }
+                },
+                _ => {} 
+            }
+        }
+        Signal::None
     }
 }

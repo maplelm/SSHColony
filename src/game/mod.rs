@@ -6,4 +6,4 @@ use scenes::LoadGame;
 
 mod core;
 pub use core::*;
-mod types;
+pub mod types;

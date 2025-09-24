@@ -3,8 +3,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use super::{structs::*, types::*};
-use crate::engine::types as enginetypes;
+use super::{types::*, structs::*, types::*};
+use crate::engine::{types as enginetypes, traits::Storeable};
 
 #[derive(
     Clone, Hash, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
@@ -25,22 +25,21 @@ pub enum Object {
     },
 }
 
-impl enginetypes::StoreItem for Object {
+impl Storeable for Object {
     type Key = String;
     fn key(&self) -> Self::Key {
         match self.name() {
             Some(n) => n.clone(),
-            None => "".to_string()
+            None => "".to_string(),
         }
     }
 }
 
 impl Object {
-
     pub fn name(&self) -> &Option<String> {
         match self {
-            Object::Static { name, ..} => name,
-            Object::Dynamic {name, ..} => name
+            Object::Static { name, .. } => name,
+            Object::Dynamic { name, .. } => name,
         }
     }
     fn new_cursor() -> usize {
@@ -83,7 +82,10 @@ impl Object {
     }
     pub fn new_static(s: Sprite) -> Option<Object> {
         if s.len() > 0 {
-            return Some(Object::Static { sprite: s , name: None});
+            return Some(Object::Static {
+                sprite: s,
+                name: None,
+            });
         }
         return None;
     }
@@ -161,5 +163,6 @@ pub enum Msg {
     RemoveRange(enginetypes::Position<usize>, enginetypes::Position<usize>),
     Swap(enginetypes::Position<usize>, enginetypes::Position<usize>),
     Batch(Vec<Msg>),
+    TermSizeChange(u32, u32),
     Clear,
 }
