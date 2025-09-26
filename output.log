@@ -1,7 +1,0 @@
-Pre: Position { x: 3, y: 3 }  Post: Position { x: 3, y: 4 }
-Pre: Position { x: 3, y: 4 }  Post: Position { x: 3, y: 5 }
-Pre: Position { x: 3, y: 3 }  Post: Position { x: 3, y: 4 }
-Pre: Position { x: 3, y: 4 }  Post: Position { x: 3, y: 3 }
-Pre: Position { x: 3, y: 3 }  Post: Position { x: 3, y: 4 }
-Pre: Position { x: 3, y: 4 }  Post: Position { x: 3, y: 3 }
-

@@ -2,3 +2,6 @@
 /.vscode
 /saves
 /Archive
+*.log
+**/*.log
+/**/*.log
