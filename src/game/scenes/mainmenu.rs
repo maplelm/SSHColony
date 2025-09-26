@@ -1,9 +1,15 @@
+#![deny(unused)]
+
 use crate::{
     engine::{
-        self, input::{Event, KeyEvent}, enums::Signal,
-        render::{self, insert_text},
+        enums::Signal,
+        input::{Event, KeyEvent},
+        render::{self, Canvas, insert_text},
         types::Position,
-        ui::{Border, Menu, MenuItem, UIElement},
+        ui::{
+            Border, BorderSprite, Menu, MenuItem, Padding,
+            style::{Justify, Origin},
+        },
     },
     game::{Game, LoadGame, Settings},
 };
@@ -13,7 +19,7 @@ enum Signals {
     NewScene(Game),
 }
 
-use std::{io::Write, sync::mpsc};
+use std::{sync::mpsc};
 
 pub struct MainMenu {
     menu: Menu<MainMenu, Signals>,
@@ -21,29 +27,19 @@ pub struct MainMenu {
 }
 
 impl MainMenu {
-    pub fn init(&mut self, render_tx: &mpsc::Sender<render::Msg>) -> Signal<Game> {
-        let _ = render_tx.send(render::Msg::InsertText {
-            pos: Position::new(self.menu.x(), self.menu.y()),
-            text: self.menu.output(),
-            prefix: None,
-            suffix: None,
-        });
-        let _ = render_tx.send(render::Msg::Prefix(String::from("\x1b[43m")));
-        self.init_complete = true;
-
-        Signal::None
-    }
-
-    pub fn is_init(&self) -> bool {
-        self.init_complete
-    }
-
     pub fn new() -> Game {
         Game::MainMenu(Self {
             menu: Menu::<MainMenu, Signals>::new(
+                0,
                 1,
-                1,
-                Some(Border::default()),
+                None, //Some(Measure::Cell(10)),
+                None, //Some(Measure::Cell(15)),
+                Origin::TopLeft,
+                Justify::Left,
+                Some(Border::new(
+                    BorderSprite::String("|#".to_string()),
+                    Padding::square(2),
+                )),
                 vec![
                     MenuItem {
                         label: String::from("Play"),
@@ -66,11 +62,45 @@ impl MainMenu {
             init_complete: false,
         })
     }
+
+    pub fn init(&mut self, render_tx: &mpsc::Sender<render::Msg>, canvas: &Canvas) -> Signal<Game> {
+        let _ = render_tx.send(render::Msg::InsertText {
+            pos: Position::new(self.menu.x(), self.menu.y()),
+            text: self.menu.output(canvas),
+            prefix: None,
+            suffix: None,
+        });
+        /*
+        let _ = render_tx.send(render::Msg::Prefix(
+            term::color::Background::new(term::color::Value::Iso {
+                color: term::color::Iso::Yellow,
+                bright: true,
+            })
+            .to_ansi(),
+        ));
+        let _ = render_tx.send(render::Msg::Prefix(
+            term::color::Foreground::new(term::color::Value::Iso {
+                color: term::color::Iso::Black,
+                bright: false,
+            })
+            .to_ansi(),
+        ));
+        */
+        self.init_complete = true;
+
+        Signal::None
+    }
+
+    pub fn is_init(&self) -> bool {
+        self.init_complete
+    }
+
     pub fn update(
         &mut self,
         _delta_time: f32,
         event: &mpsc::Receiver<Event>,
         render_tx: &mpsc::Sender<render::Msg>,
+        _canvas: &Canvas,
     ) -> Signal<Game> {
         let mut signals: Vec<Signal<Game>> = vec![];
         for e in event.try_iter() {
@@ -88,7 +118,10 @@ impl MainMenu {
                         if self.menu.cursor_up(1) {
                             let _ = render_tx.send(render::Msg::Batch(vec![
                                 render::Msg::Remove(pre_pos),
-                                render::Msg::Insert(self.menu.cursor_pos(), self.menu.marker_object().unwrap()),
+                                render::Msg::Insert(
+                                    self.menu.cursor_pos(),
+                                    self.menu.marker_object(),
+                                ),
                             ]));
                         }
                     }
@@ -97,7 +130,10 @@ impl MainMenu {
                         if self.menu.cursor_down(1) {
                             let _ = render_tx.send(render::Msg::Batch(vec![
                                 render::Msg::Remove(pre_pos),
-                                render::Msg::Insert(self.menu.cursor_pos(), self.menu.marker_object().unwrap()),
+                                render::Msg::Insert(
+                                    self.menu.cursor_pos(),
+                                    self.menu.marker_object(),
+                                ),
                             ]));
                         }
                     }
@@ -136,8 +172,13 @@ impl MainMenu {
         false
     }
     pub fn reset(&mut self) {}
-    pub fn resume(&mut self, render_tx: &mpsc::Sender<render::Msg>) {
-        let _ = insert_text(self.menu.x(), self.menu.y(), self.menu.output(), render_tx);
+    pub fn resume(&mut self, render_tx: &mpsc::Sender<render::Msg>, canvas: &Canvas) {
+        let _ = insert_text(
+            self.menu.x(),
+            self.menu.y(),
+            self.menu.output(canvas),
+            render_tx,
+        );
         let _ = render_tx.send(render::Msg::Prefix(String::from("\x1b[43m")));
     }
     pub fn suspend(&mut self, render_tx: &mpsc::Sender<render::Msg>) {

@@ -17,6 +17,11 @@ enphisis on combat and survival more so then casual building and story telling.
 - [ ] Need to test what I have with just a basic world. 
     - [ ] world generation will just pop out the same very flat and small world every time with no settings.
 - [ ] Will need to figure out how pagination should work for menus and such
+- [ ] Watch for `SIGWINCH` signals and fire off an event to let the engine know the terminal size has changed.
+- [ ] Fix Renderer cutting off top row of canvas.
+    - The cursor being set wrong?
+- [ ] Fix pattered borders.. they are not incrementing correctly
+    - Test prints work perfectly so this is a render grid issue...
 
 # Technical Specifications
 

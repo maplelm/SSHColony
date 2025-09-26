@@ -1,4 +1,5 @@
 use super::types::*;
+use super::sprites::Sprite;
 use std::time::{Duration, Instant};
 
 #[derive(Clone, Hash, Debug, serde::Serialize, serde::Deserialize)]

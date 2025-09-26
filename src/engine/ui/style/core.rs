@@ -1,36 +1,74 @@
+use super::super::border::Border;
+use std::fmt::Display;
+use term::color::{Background, Foreground, Iso, Value};
 
-pub enum Size{
-    Fixed(u32),
-    Relative(u32) // relative to the screen as a whole
+pub struct Style {
+    x: Measure,
+    y: Measure,
+    origin: Origin,
+    width: Option<Measure>,
+    height: Option<Measure>,
+    border: Option<Border>,
+    foreground: term::color::Foreground,
+    background: term::color::Background,
 }
 
-impl Size {
-    pub fn new_fixed(val: u32) -> Self {
-        Self::Fixed(val)
+impl Default for Style {
+    fn default() -> Self {
+        Self {
+            x: Measure::Cell(0),
+            y: Measure::Cell(0),
+            origin: Origin::TopLeft,
+            width: None,
+            height: None,
+            border: None,
+            foreground: Foreground::new(Value::Iso {
+                color: Iso::White,
+                bright: false,
+            }),
+            background: Background::new(Value::Iso {
+                color: Iso::Black,
+                bright: false,
+            }),
+        }
     }
+}
 
-    pub fn new_relative(val: u32) -> Self {
-        Self::Relative(val)
-    }
+// -------------
+// Name: Measure
+// Usage: stores a value with an associated unit
+// -------------
+pub enum Measure {
+    Cell(u32),
+    Percent(u8), // percent of totle terminal size
+}
 
-    pub fn is_relative(&self) -> bool {
-        match self {
-            Self::Relative(_) => true,
-            _ => false
+impl Measure {
+    pub fn get(&self, max: usize) -> usize {
+        match *self {
+            Measure::Cell(val) => val as usize,
+            Measure::Percent(val) => ((max as f32 / 100.0) * val as f32) as usize,
         }
     }
 
-    pub fn is_fixed(&self ) -> bool {
-        match self {
-            Self::Fixed(_) => true,
-            _ => false,
+    pub fn get_raw(&self) -> usize {
+        match *self {
+            Measure::Cell(val) => val as usize,
+            Measure::Percent(val) => val as usize,
         }
     }
+}
 
-    pub fn abs(&self) -> u32 {
-        match self {
-            Self::Fixed(val) => *val,
-            Self::Relative(val) => *val
-        }
-    }
+pub enum Origin {
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+    Center,
+}
+
+pub enum Justify {
+    Left,
+    Right,
+    Center,
 }

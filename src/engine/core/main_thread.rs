@@ -23,12 +23,12 @@ pub fn start<T: Scene<T>>(mut ins: Instance<T>) -> Result<(), Error> {
 
     let (audio_tx, audio_rx, audio_handle) = start_audio_thread(&ins.ctx);
     let (event_tx, event_rx, event_handle) = start_event_thread(&ins.ctx);
-    let (render_tx, render_handle) = start_render_thread(&ins.ctx, DEFAULT_CANVAS, event_tx);
+    let (render_tx, render_handle) = start_render_thread(&ins.ctx, ins.canvas.clone(), event_tx);
     // Init First Scene
     let index = ins.game_state.len() - 1;
     if let Some(scene) = ins.game_state.get_mut(index) {
         if !scene.is_init() {
-            scene.init(&render_tx);
+            scene.init(&render_tx, &ins.canvas);
         }
     }
 
@@ -59,11 +59,11 @@ fn main_loop<T: Scene<T>>(
     let mut dt: f32 = Duration::from_millis(16).as_secs_f32(); // pretend 60fps until we can calculate real delta
     while ins.ctx.is_alive() && ins.game_state.len() > 0 {
         let index = ins.game_state.len() - 1;
-        let signals = ins
-            .game_state
-            .get_mut(index)
-            .unwrap()
-            .update(dt, &event_rx, &render_tx);
+        let signals =
+            ins.game_state
+                .get_mut(index)
+                .unwrap()
+                .update(dt, &event_rx, &render_tx, &ins.canvas);
         match dispatch(ins, signals, &render_tx) {
             Ok(i) => ins = i,
             Err(e) => return Err(e),
@@ -71,7 +71,7 @@ fn main_loop<T: Scene<T>>(
         dt = (Instant::now() - end_frame).as_secs_f32();
         end_frame = Instant::now();
     }
-    exit_engine(ins.term_orig);
+    exit_engine(ins.term_orig.clone());
     Ok(())
 }
 
@@ -86,14 +86,17 @@ fn dispatch<T: Scene<T>>(
         Signal::PopScene => {
             ins.game_state.pop();
             let index = ins.game_state.len() - 1;
-            ins.game_state.get_mut(index).unwrap().resume(render_tx);
+            ins.game_state
+                .get_mut(index)
+                .unwrap()
+                .resume(render_tx, &ins.canvas);
         }
         Signal::NewScene(mut s) => {
             if ins.game_state.len() > 0 {
                 let index = ins.game_state.len() - 1;
                 ins.game_state.get_mut(index).unwrap().suspend(render_tx);
             }
-            let sig = s.init(render_tx);
+            let sig = s.init(render_tx, &ins.canvas);
             match dispatch(ins, sig, render_tx) {
                 Ok(i) => ins = i,
                 Err(e) => return Err(e),

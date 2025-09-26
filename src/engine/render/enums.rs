@@ -3,8 +3,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use super::{types::*, structs::*, types::*};
-use crate::engine::{types as enginetypes, traits::Storeable};
+use term::color::{Foreground, Background};
+
+use super::{sprites::Sprite, structs::*, types::*, types::*};
+use crate::engine::{traits::Storeable, types as enginetypes};
 
 #[derive(
     Clone, Hash, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
@@ -74,26 +76,21 @@ impl Object {
             None
         }
     }
-    pub fn sprite(&self) -> &str {
+    pub fn sprite(&self) -> &Sprite {
         match self {
-            Object::Dynamic { sprite, cursor, .. } => &(sprite[*cursor]),
-            Object::Static { sprite, .. } => &sprite,
+            Object::Dynamic { sprite, cursor, .. } => &sprite[*cursor],
+            Object::Static { sprite, .. } => sprite,
         }
     }
-    pub fn new_static(s: Sprite) -> Option<Object> {
-        if s.len() > 0 {
-            return Some(Object::Static {
-                sprite: s,
-                name: None,
-            });
+    pub fn new_static(sym: char, bg: Option<Background>, fg: Option<Foreground>) -> Object {
+        Object::Static {
+            sprite: Sprite::new(sym, bg, fg),
+            name: None,
         }
-        return None;
     }
-    pub fn new_dynamic(s: Vec<String>, tick: std::time::Duration) -> Option<Object> {
-        for each in s.iter() {
-            if each.len() < 1 {
-                return None;
-            }
+    pub fn new_dynamic(s: Vec<Sprite>, tick: std::time::Duration) -> Option<Object> {
+        if s.len() < 1 {
+            return None;
         }
         return Some(Object::Dynamic {
             name: None,
