@@ -2,6 +2,7 @@
 
 #[cfg(not(test))]
 use super::super::ui::style::{CLEAR_COLORS, CURSOR_HOME};
+use term::color::{Color, Foreground, Background};
 use super::super::{
     Context,
     input::Event,
@@ -24,14 +25,13 @@ pub fn render_thread(
     rx: mpsc::Receiver<Msg>,
     event_tx: mpsc::Sender<Event>,
 ) {
-    let canvas_area = canvas.width * canvas.height;
-    let mut object_grid: Grid = Vec::with_capacity(canvas_area);
-    let mut dynamics_list: DynRefList = Vec::with_capacity(canvas_area);
-    let mut tile_prefix: String = String::new();
-    let mut tile_suffix: String = String::new();
+    let mut object_grid: Grid = Vec::with_capacity(canvas.area());
+    let mut dynamics_list: DynRefList = Vec::with_capacity(canvas.area());
+    let mut foreground: Foreground = Foreground::new(Color::None);
+    let mut background: Background = Background::new(Color::None);
     let mut dirty: bool = true;
 
-    object_grid.resize(canvas_area, None);
+    object_grid.resize(canvas.area(), None);
 
     // Main Loop
     while ctx.is_alive() {
@@ -40,18 +40,18 @@ pub fn render_thread(
             &event_tx,
             &mut dirty,
             &mut canvas,
-            &mut tile_prefix,
-            &mut tile_suffix,
+            &mut foreground,
+            &mut background,
             &mut object_grid,
             &mut dynamics_list,
         );
         clear_invalid_weak_refs(&mut dynamics_list, &mut dirty);
         update_dynamic_objects(&mut dynamics_list, &mut dirty);
-        print_grid_to_screen(
+        print(
             &object_grid,
             &canvas,
-            &tile_prefix,
-            &tile_suffix,
+            &foreground,
+            &background,
             &mut dirty,
         );
     }
@@ -62,8 +62,8 @@ fn dispatch_messages(
     event_tx: &mpsc::Sender<Event>,
     dirty: &mut bool,
     canvas: &mut Canvas,
-    tile_prefix: &mut String,
-    tile_suffix: &mut String,
+    foreground: &mut Foreground,
+    background: &mut Background,
     object_grid: &mut Grid,
     dynamics_list: &mut DynRefList,
 ) {
@@ -73,8 +73,8 @@ fn dispatch_messages(
             msg,
             event_tx,
             canvas,
-            tile_prefix,
-            tile_suffix,
+            foreground,
+            background,
             object_grid,
             dynamics_list,
         );
@@ -84,8 +84,8 @@ fn process_each_msg(
     msg: Msg,
     event_tx: &mpsc::Sender<Event>,
     canvas: &mut Canvas,
-    tile_prefix: &mut String,
-    tile_suffix: &mut String,
+    foreground: &mut Foreground,
+    background: &mut Background,
     object_grid: &mut Grid,
     dynamics_list: &mut DynRefList,
 ) {
@@ -94,28 +94,19 @@ fn process_each_msg(
             batch,
             event_tx,
             canvas,
-            tile_prefix,
-            tile_suffix,
+            foreground,
+            background,
             object_grid,
             dynamics_list,
         ),
         Msg::TermSizeChange(c, r) => term_size_change_msg(c, r, canvas, object_grid, event_tx),
         Msg::Insert(pos, obj) => insert_msg(pos, obj, canvas, object_grid, dynamics_list),
-        Msg::Prefix(prefix) => change_prefix_msg(prefix, tile_prefix),
-        Msg::Suffix(suffix) => change_suffix_msg(suffix, tile_suffix),
+        Msg::Background(bg) => change_bg(bg, background),
+        Msg::Foreground(fg) => change_fg(fg, foreground),
         Msg::InsertRange { start, end, object } => {
             insert_range_msg(start, end, object, canvas, object_grid, dynamics_list)
         }
-        Msg::InsertText {
-            pos,
-            text,
-            ..
-        } => insert_text_msg(
-            pos,
-            text,
-            canvas,
-            object_grid,
-        ),
+        Msg::InsertText { pos, text, .. } => insert_text_msg(pos, text, canvas, object_grid),
         Msg::Remove(pos) => remove_msg(pos, object_grid, canvas),
         Msg::RemoveRange(start, end) => remove_range_msg(start, end, object_grid, canvas),
         Msg::Swap(a, b) => swap_msg(a, b, canvas, object_grid),
@@ -123,12 +114,50 @@ fn process_each_msg(
     }
 }
 
+fn print(
+    object_grid: &Grid,
+    canvas: &Canvas,
+    foreground: &Foreground,
+    background: &Background,
+    dirty: &mut bool,
+) {
+    if !*dirty {
+        return;
+    }
+
+    let default_color: String = foreground.to_ansi() + &background.to_ansi();
+
+    #[cfg(not(test))]
+    let mut output = String::from(CURSOR_HOME) + CLEAR_COLORS;
+    #[cfg(test)]
+    let mut output = String::new();
+    for (i, c) in object_grid.iter().enumerate() {
+        let x: usize = (i % canvas.width) + 1;
+        let end: &str = if x == canvas.width { "\r\n" } else { "" };
+        if let Some(object) = c {
+            output.push_str(default_color.as_str());
+            output.push_str(&object.borrow().sprite().to_string());
+            output.push_str(end);
+        } else {
+            output.push_str(default_color.as_str());
+                output.push(' ');
+                output.push_str(end);
+        }
+    }
+    print!("{}", output);
+    *dirty = false;
+}
+
+
+//////////////////////
+// Helper Functions //
+//////////////////////
 fn batch_msg(
     messages: Vec<Msg>,
     event_tx: &mpsc::Sender<Event>,
     canvas: &mut Canvas,
-    tile_prefix: &mut String,
-    tile_suffix: &mut String,
+    foreground: &mut Foreground,
+    background: &mut Background,
     object_grid: &mut Grid,
     dynamics_list: &mut DynRefList,
 ) {
@@ -137,12 +166,20 @@ fn batch_msg(
             msg,
             event_tx,
             canvas,
-            tile_prefix,
-            tile_suffix,
+            foreground,
+            background,
             object_grid,
             dynamics_list,
         );
     }
+}
+
+fn change_bg(new: Background, bg: &mut Background) {
+    *bg = new;
+}
+
+fn change_fg(new: Foreground, fg: &mut Foreground) {
+    *fg = new;
 }
 
 fn term_size_change_msg(
@@ -180,14 +217,6 @@ fn insert_msg(
             object_grid[pos.y * canvas.width + pos.x] = Some(val);
         }
     }
-}
-
-fn change_prefix_msg(new: String, tile_prefix: &mut String) {
-    *tile_prefix = new;
-}
-
-fn change_suffix_msg(new: String, tile_suffix: &mut String) {
-    *tile_suffix = new;
 }
 
 fn insert_range_msg(
@@ -242,12 +271,7 @@ fn insert_range_msg(
     }
 }
 
-fn insert_text_msg(
-    pos: Position<usize>,
-    text: String,
-    canvas: &Canvas,
-    object_grid: &mut Grid,
-) {
+fn insert_text_msg(pos: Position<usize>, text: String, canvas: &Canvas, object_grid: &mut Grid) {
     let mut y: usize = pos.y;
     let mut x: usize = pos.x;
     for each in text.chars() {
@@ -312,54 +336,22 @@ fn update_dynamic_objects(dynamics_list: &mut DynRefList, dirty: &mut bool) {
     }
 }
 
-fn print_grid_to_screen(
-    object_grid: &Grid,
-    canvas: &Canvas,
-    tile_prefix: &String,
-    tile_suffix: &String,
-    dirty: &mut bool,
-) {
-    if !*dirty {
-        return;
-    }
-    #[cfg(not(test))]
-    let mut output = String::from(CURSOR_HOME) + CLEAR_COLORS;
-    #[cfg(test)]
-    let mut output = String::new();
-    for (i, c) in object_grid.iter().enumerate() {
-        let x: usize = (i % canvas.width) + 1;
-        let end: &str = if x == canvas.width { "\r\n" } else { "" };
-        if let Some(object) = c {
-            output.push_str(&format!(
-                "{}{}{}{}",
-                tile_prefix,
-                object.borrow().sprite(),
-                tile_suffix,
-                end));
-        } else {
-            output.push_str(&format!(
-                "{}{}{}{}",
-                tile_prefix,
-                " ",
-                tile_suffix,
-                end));
-        }
-    }
-    print!("{}", output);
-    *dirty = false;
-}
 
 #[cfg(test)]
 mod test {
-    use crate::engine::ui::{
-        Border, BorderSprite, Menu, MenuItem, Padding,
-        style::{Justify, Measure, Origin},
-    };
 
     use super::*;
+    use crate::engine::ui::style::Measure;
+    use crate::engine::ui::{
+        Border, BorderSprite, Menu, MenuItem, Padding,
+        style::{Justify, Origin},
+    };
+
     #[test]
     fn test_insert_text_to_grid() {
         let c = Canvas::new(25, 10);
+
+        // Setting up Menu Object
         let mut m = Menu::<(), ()>::new(
             0,
             0,
@@ -367,7 +359,7 @@ mod test {
             Some(Measure::Cell(10)),
             Origin::TopLeft,
             Justify::Left,
-            Some(Border::new(
+            Some(Border::from(
                 BorderSprite::String("#=:".to_string()),
                 Padding::square(2),
             )),
@@ -377,32 +369,27 @@ mod test {
                 MenuItem::new("Item Three".to_string(), |_| None),
             ],
         );
-        let m_output = m.output(&c);
+        // Setting up Grid Object
         let mut grid: Grid = vec![];
         grid.resize(c.width * c.height, None);
 
-        insert_text_msg(
-            Position { x: m.x(), y: m.y() },
-            m_output.clone(),
-            &c,
-            &mut grid,
-        );
-        println!("Raw Menu Output:\n\r{}\r", m_output);
-        let fill = String::new();
+        insert_text_msg(Position { x: m.x(), y: m.y() }, m.output(&c), &c, &mut grid);
+
+        println!("Raw Menu Output:\n{}", m.output(&c));
+        let fg = Foreground::new(Color::None);
+        let bg = Background::new(Color::None);
         let mut b = true;
         println!("Grid Output:\r");
-        print_grid_to_screen(&grid, &c, &fill, &fill, &mut b);
-        let mut offset: usize = 0;
-        for (i, c) in m_output.chars().enumerate() {
-            if c == '\n' {
-                offset += 1;
-            }
+        print(&grid, &c, &fg, &bg, &mut b);
+        for (i, ch) in m.output(&c).replace("\n", "").chars().enumerate() {
+            let x: usize = (i % c.width) + 1;
+            let y: usize = (i / c.width) + 1;
             let grid_c: char = if let Some(c) = &grid[i] {
                 c.borrow().sprite().symbol()
             } else {
                 ' '
             };
-            assert_eq!(grid_c, m_output.chars().nth(i - offset).unwrap())
+            assert_eq!(grid_c, ch, "{x},{y}")
         }
     }
 }

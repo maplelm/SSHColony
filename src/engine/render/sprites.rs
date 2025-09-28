@@ -1,7 +1,8 @@
-use super::color;
+#![deny(unused)]
+
 use std::time::{Duration};
 use std::fmt::Display;
-use term::color::{Background, Foreground, Value};
+use term::color::{Background, Foreground};
 
 use super::Object;
 
@@ -55,10 +56,12 @@ impl Sprite {
     }
 }
 
+#[allow(unused)]
 pub fn dwarf_object() -> Object {
     Object::new_static('D', None, Some(Foreground::white(false)))
 }
 
+#[allow(unused)]
 pub fn hurt_dwarf_object(millis: u64) -> Object {
     Object::new_dynamic(vec![
             Sprite::new('D', None, Some(Foreground::red(false))),

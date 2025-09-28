@@ -17,21 +17,15 @@ impl BorderSprite {
             _ => false,
         }
     }
-}
 
-#[derive(Clone)]
-struct Side {
-    sprite: BorderSprite,
-    cursor: usize,
-}
-
-impl Side {
-    pub fn new(s: BorderSprite) -> Self {
-        Self {
-            sprite: s,
-            cursor: 0,
+    pub fn next(&self, iter: usize) -> Option<char> {
+    match self {
+                BorderSprite::Char(c) => Some(*c),
+                BorderSprite::String(s) => s.chars().nth(iter % s.len()),
+                BorderSprite::None => None,
         }
     }
+
 }
 
 #[derive(Clone)]
@@ -75,43 +69,87 @@ impl Default for Padding {
 
 #[derive(Clone)]
 pub struct Border {
-    top: Side,
-    bottom: Side,
-    left: Side,
-    right: Side,
+    top: BorderSprite,
+    bottom: BorderSprite,
+    left: BorderSprite,
+    right: BorderSprite,
     padding: Padding,
 }
 
 impl Border {
-    pub fn new(s: BorderSprite, p: Padding) -> Self {
+    pub fn new() -> Self {
+        Self { 
+            top: BorderSprite::None,
+            bottom: BorderSprite::None,
+            left: BorderSprite::None, 
+            right: BorderSprite::None,
+            padding: Padding { top: 0, bottom: 0, right: 0, left: 0 }
+        }
+    }
+
+    fn test() {
+
+        let x = Border::new()
+            .top(BorderSprite::Char('#'))
+            .bottom(BorderSprite::Char('-'))
+            .pad_bottom(2);
+
+    }
+
+    pub fn top(mut self, sprite: BorderSprite) -> Self {
+        self.top = sprite;
+        self
+    }
+
+    pub fn bottom(mut self, sprite: BorderSprite) -> Self {
+        self.bottom = sprite;
+        self
+    }
+
+    pub fn left(mut self, sprite: BorderSprite) -> Self {
+        self.left = sprite;
+        self
+    }
+
+    pub fn right(mut self, sprite: BorderSprite) -> Self {
+        self.right = sprite;
+        self
+    }
+
+    pub fn pad_top(mut self, val: usize) -> Self {
+        self.padding.top = val;
+        self
+    }
+
+    pub fn pad_bottom(mut self, val: usize) -> Self {
+        self.padding.bottom = val;
+        self
+    }
+
+    pub fn pad_left(mut self, val: usize) -> Self {
+        self.padding.left = val;
+        self
+    }
+
+    pub fn pad_right(mut self, val: usize) -> Self {
+        self.padding.right = val;
+        self
+    }
+
+    pub fn from(s: BorderSprite, p: Padding) -> Self {
         Self {
-            top: Side::new(s.clone()),
-            bottom: Side::new(s.clone()),
-            left: Side::new(s.clone()),
-            right: Side::new(s.clone()),
+            top: s.clone(),
+            bottom: s.clone(),
+            left: s.clone(),
+            right: s.clone(),
             padding: p,
         }
     }
 
-    pub fn new_detailed(
-        t: BorderSprite,
-        b: BorderSprite,
-        l: BorderSprite,
-        r: BorderSprite,
-        p: Padding,
-    ) -> Self {
-        Self {
-            top: Side::new(t),
-            bottom: Side::new(b),
-            left: Side::new(l),
-            right: Side::new(r),
-            padding: p,
-        }
-    }
 
     pub fn width(&self) -> usize {
-        if !self.left.sprite.is_none() || !self.right.sprite.is_none() {
-            if !self.left.sprite.is_none() && !self.right.sprite.is_none() {
+        if !self.left.is_none() || !self.right.is_none() {
+            if !self.left.is_none() && !self.right.is_none() {
                 return 2;
             }
             return 1;
@@ -120,8 +158,8 @@ impl Border {
     }
 
     pub fn height(&self) -> usize {
-        if !self.top.sprite.is_none() || !self.bottom.sprite.is_none() {
-            if !self.top.sprite.is_none() && !self.bottom.sprite.is_none() {
+        if !self.top.is_none() || !self.bottom.is_none() {
+            if !self.top.is_none() && !self.bottom.is_none() {
                 return 2;
             }
             return 1;
@@ -129,118 +167,52 @@ impl Border {
         return 0;
     }
 
-    pub fn padding_top(&self) -> usize {
+    pub fn get_pad_top(&self) -> usize {
         self.padding.top
     }
 
-    pub fn padding_bottom(&self) -> usize {
+    pub fn get_pad_bottom(&self) -> usize {
         self.padding.bottom
     }
 
-    pub fn padding_left(&self) -> usize {
+    pub fn get_pad_left(&self) -> usize {
         self.padding.left
     }
 
-    pub fn padding_right(&self) -> usize {
+    pub fn get_pad_right(&self) -> usize {
         self.padding.right
     }
 
-    pub fn reset(&mut self) {
-        self.top.cursor = 0;
-        self.bottom.cursor = 0;
-        self.left.cursor = 0;
-        self.right.cursor = 0;
-    }
 
-    pub fn reset_top(&mut self) {
-        self.top.cursor = 0;
-    }
-
-    pub fn reset_bottom(&mut self) {
-        self.bottom.cursor = 0;
-    }
-
-    pub fn reset_left(&mut self) {
-        self.left.cursor = 0;
-    }
-
-    pub fn reset_right(&mut self) {
-        self.right.cursor = 0;
-    }
-
-    pub fn next_top(&mut self) -> char {
-        match &self.top.sprite {
-            BorderSprite::None => '\0',
-            BorderSprite::Char(c) => *c,
-            BorderSprite::String(s) => {
-                let mut output: char = match s.chars().nth(self.top.cursor) {
-                    Some(c) => c,
-                    None => '\0', // Log that There is a problem
-                };
-                if self.top.cursor == s.len() - 1 {
-                    self.top.cursor = 0;
-                } else {
-                    self.top.cursor += 1;
-                }
-                return output;
-            }
+    pub fn get_top(&self, iter: usize) -> Option<char> {
+        match &self.top {
+            BorderSprite::None => None,
+            BorderSprite::Char(c) => Some(*c),
+            BorderSprite::String(s) => s.chars().nth(iter % s.len()),
         }
     }
 
-    pub fn next_bottom(&mut self) -> char {
-        match &self.bottom.sprite {
-            BorderSprite::None => '\0',
-            BorderSprite::Char(c) => *c,
-            BorderSprite::String(s) => {
-                let output: char = match s.chars().nth(self.bottom.cursor) {
-                    Some(c) => c,
-                    None => '\0',
-                };
-                if self.bottom.cursor == s.len() - 1 {
-                    self.bottom.cursor = 0;
-                } else {
-                    self.bottom.cursor += 1;
-                }
-                return output;
-            }
+    pub fn get_bottom(&self, iter: usize) -> Option<char> {
+        match &self.bottom {
+            BorderSprite::None => None,
+            BorderSprite::Char(c) => Some(*c),
+            BorderSprite::String(s) => s.chars().nth(iter % s.len()),
         }
     }
 
-    pub fn next_left(&mut self) -> char {
-        match &self.left.sprite {
-            BorderSprite::None => '\0',
-            BorderSprite::Char(c) => *c,
-            BorderSprite::String(s) => {
-                let output: char = match s.chars().nth(self.left.cursor) {
-                    Some(c) => c,
-                    None => '\0',
-                };
-                if self.left.cursor == s.len() - 1 {
-                    self.left.cursor = 0;
-                } else {
-                    self.left.cursor += 1;
-                }
-                return output;
-            }
+    pub fn get_left(&self, iter: usize) -> Option<char> {
+        match &self.left {
+            BorderSprite::None => None,
+            BorderSprite::Char(c) => Some(*c),
+            BorderSprite::String(s) => s.chars().nth(iter % s.len()),
         }
     }
 
-    pub fn next_right(&mut self) -> char {
-        match &self.right.sprite {
-            BorderSprite::None => '\0',
-            BorderSprite::Char(c) => *c,
-            BorderSprite::String(s) => {
-                let output: char = match s.chars().nth(self.right.cursor) {
-                    Some(c) => c,
-                    None => '\0',
-                };
-                if self.right.cursor == s.len() - 1 {
-                    self.right.cursor = 0;
-                } else {
-                    self.right.cursor += 1;
-                }
-                return output;
-            }
+    pub fn get_right(&self, iter: usize) -> Option<char> {
+        match &self.right {
+            BorderSprite::None => None,
+            BorderSprite::Char(c) => Some(*c),
+            BorderSprite::String(s) => s.chars().nth(iter % s.len())
         }
     }
 }
@@ -248,10 +220,10 @@ impl Border {
 impl Default for Border {
     fn default() -> Self {
         Self {
-            top: Side::new(BorderSprite::Char('#')),
-            bottom: Side::new(BorderSprite::Char('#')),
-            left: Side::new(BorderSprite::Char('#')),
-            right: Side::new(BorderSprite::Char('#')),
+            top: BorderSprite::Char('#'),
+            bottom: BorderSprite::Char('#'),
+            left: BorderSprite::Char('#'),
+            right: BorderSprite::Char('#'),
             padding: Padding::square(1),
         }
     }

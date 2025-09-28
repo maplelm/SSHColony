@@ -22,6 +22,7 @@ enphisis on combat and survival more so then casual building and story telling.
     - The cursor being set wrong?
 - [ ] Fix pattered borders.. they are not incrementing correctly
     - Test prints work perfectly so this is a render grid issue...
+- [ ] Rework how save files will be loaded into the game. I think that I need to have valid save files and use the file contents rather then using any of the files metadata
 
 # Technical Specifications
 

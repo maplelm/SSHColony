@@ -21,22 +21,22 @@ enum Signals {
 
 use std::{sync::mpsc};
 
-pub struct MainMenu {
-    menu: Menu<MainMenu, Signals>,
+pub struct MainMenu<'a> {
+    menu: Menu<&'a MainMenu<'a>, Signals>,
     init_complete: bool,
 }
 
-impl MainMenu {
+impl<'a, 'b> MainMenu<'a> {
     pub fn new() -> Game {
         Game::MainMenu(Self {
-            menu: Menu::<MainMenu, Signals>::new(
+            menu: Menu::<&MainMenu, Signals>::new(
                 0,
                 1,
                 None, //Some(Measure::Cell(10)),
                 None, //Some(Measure::Cell(15)),
                 Origin::TopLeft,
                 Justify::Left,
-                Some(Border::new(
+                Some(Border::from(
                     BorderSprite::String("|#".to_string()),
                     Padding::square(2),
                 )),
@@ -70,22 +70,6 @@ impl MainMenu {
             prefix: None,
             suffix: None,
         });
-        /*
-        let _ = render_tx.send(render::Msg::Prefix(
-            term::color::Background::new(term::color::Value::Iso {
-                color: term::color::Iso::Yellow,
-                bright: true,
-            })
-            .to_ansi(),
-        ));
-        let _ = render_tx.send(render::Msg::Prefix(
-            term::color::Foreground::new(term::color::Value::Iso {
-                color: term::color::Iso::Black,
-                bright: false,
-            })
-            .to_ansi(),
-        ));
-        */
         self.init_complete = true;
 
         Signal::None
@@ -96,7 +80,7 @@ impl MainMenu {
     }
 
     pub fn update(
-        &mut self,
+        &'b mut self,
         _delta_time: f32,
         event: &mpsc::Receiver<Event>,
         render_tx: &mpsc::Sender<render::Msg>,
@@ -114,7 +98,7 @@ impl MainMenu {
                         let _ = render::insert_text(1, 1, "Term RPG".to_string(), render_tx);
                     }
                     KeyEvent::Up | KeyEvent::Char('w') => {
-                        let pre_pos = self.menu.cursor_pos();
+                        let pre_pos = {self.menu.cursor_pos()};
                         if self.menu.cursor_up(1) {
                             let _ = render_tx.send(render::Msg::Batch(vec![
                                 render::Msg::Remove(pre_pos),
@@ -179,9 +163,8 @@ impl MainMenu {
             self.menu.output(canvas),
             render_tx,
         );
-        let _ = render_tx.send(render::Msg::Prefix(String::from("\x1b[43m")));
     }
+    #[allow(unused)]
     pub fn suspend(&mut self, render_tx: &mpsc::Sender<render::Msg>) {
-        let _ = render_tx.send(render::Msg::Prefix(String::new()));
     }
 }

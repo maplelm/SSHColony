@@ -3,14 +3,14 @@ use super::consts::DEFAULT_CANVAS;
 use super::super::{Context, render::Canvas};
 use super::traits::Scene;
 use term::{Terminal, term_size};
-pub struct Instance<T: Scene<T>> {
+pub struct Instance<T: Scene<T> + Copy> {
     pub ctx: Context,
     pub term_orig: Terminal,
     pub game_state: Vec<T>,
     pub canvas: Canvas,
 }
 
-impl<T: Scene<T>> Default for Instance<T> {
+impl<T: Scene<T> + Copy> Default for Instance<T> {
     fn default() -> Self {
         let mut canvas = DEFAULT_CANVAS;
         if let Some(size) = term_size() {
@@ -26,11 +26,11 @@ impl<T: Scene<T>> Default for Instance<T> {
     }
 }
 
-impl<T: Scene<T>> Drop for Instance<T> {
+impl<T: Scene<T> + Copy> Drop for Instance<T> {
     fn drop(&mut self) {}
 }
 
-impl<T: Scene<T>> Instance<T> {
+impl<T: Scene<T> + Copy> Instance<T> {
     pub fn new(init_scene: T) -> Self {
         let mut canvas = DEFAULT_CANVAS;
         if let Some(size) = term_size() {

@@ -5,7 +5,7 @@ use std::{
 
 use term::color::{Foreground, Background};
 
-use super::{sprites::Sprite, structs::*, types::*, types::*};
+use super::{sprites::Sprite, structs::*};
 use crate::engine::{traits::Storeable, types as enginetypes};
 
 #[derive(
@@ -154,8 +154,8 @@ pub enum Msg {
         prefix: Option<String>,
         suffix: Option<String>,
     },
-    Prefix(String),
-    Suffix(String),
+    Background(Background),
+    Foreground(Foreground),
     Remove(enginetypes::Position<usize>),
     RemoveRange(enginetypes::Position<usize>, enginetypes::Position<usize>),
     Swap(enginetypes::Position<usize>, enginetypes::Position<usize>),

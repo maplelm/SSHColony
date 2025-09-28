@@ -1,9 +1,11 @@
 mod ingame;
+mod loadgame;
 mod mainmenu;
 mod settings;
-mod loadgame;
+mod generateworld;
 
 pub use ingame::*;
+pub use loadgame::*;
 pub use mainmenu::*;
 pub use settings::*;
-pub use loadgame::*;
+pub use generateworld::*;

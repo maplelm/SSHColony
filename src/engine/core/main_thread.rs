@@ -16,7 +16,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub fn start<T: Scene<T>>(mut ins: Instance<T>) -> Result<(), Error> {
+pub fn start<T: Scene<T> + Copy >(mut ins: Instance<T>) -> Result<(), Error> {
     ins.term_orig = term::set_raw();
     ins.term_orig.toggle_alt_buffer();
     ins.term_orig.toggle_cursor_visable();
@@ -50,7 +50,7 @@ pub fn start<T: Scene<T>>(mut ins: Instance<T>) -> Result<(), Error> {
     }
 }
 
-fn main_loop<T: Scene<T>>(
+fn main_loop<T: Scene<T> + Copy>(
     mut ins: Instance<T>,
     render_tx: mpsc::Sender<Msg>,
     event_rx: mpsc::Receiver<Event>,
@@ -75,7 +75,7 @@ fn main_loop<T: Scene<T>>(
     Ok(())
 }
 
-fn dispatch<T: Scene<T>>(
+fn dispatch<T: Scene<T> + Copy>(
     mut ins: Instance<T>,
     sig: Signal<T>,
     render_tx: &mpsc::Sender<Msg>,
@@ -121,6 +121,7 @@ fn dispatch<T: Scene<T>>(
             }
         }
         Signal::Error(e) => return Err(e),
+        Signal::Log(msg) => {}
     }
     Ok(ins)
 }

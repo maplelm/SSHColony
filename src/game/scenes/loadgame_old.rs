@@ -33,11 +33,11 @@ impl LoadGame {
             saves_menu: Menu::new(
                 0,
                 0,
-                None,
-                None,
+                Some(engine::ui::style::Measure::Percent(100)),
+                Some(engine::ui::style::Measure::Percent(100)),
                 Origin::TopLeft,
-                Justify::Center,
-                Some(Border::new(
+                Justify::Left,
+                Some(Border::from(
                     BorderSprite::String(String::from("#=~")),
                     Padding::square(3),
                 )),
@@ -46,6 +46,7 @@ impl LoadGame {
             init_complete: false,
         })
     }
+
     pub fn init(&mut self, render_tx: &mpsc::Sender<render::Msg>, canvas: &Canvas) -> Signal<Game> {
         if let Err(_e) = render::clear(render_tx) {
             // log that there was a problem

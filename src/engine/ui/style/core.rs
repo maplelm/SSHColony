@@ -1,6 +1,6 @@
 use super::super::border::Border;
 use std::fmt::Display;
-use term::color::{Background, Foreground, Iso, Value};
+use term::color::{Background, Foreground, Iso, Color};
 
 pub struct Style {
     x: Measure,
@@ -22,11 +22,11 @@ impl Default for Style {
             width: None,
             height: None,
             border: None,
-            foreground: Foreground::new(Value::Iso {
+            foreground: Foreground::new(Color::Iso {
                 color: Iso::White,
                 bright: false,
             }),
-            background: Background::new(Value::Iso {
+            background: Background::new(Color::Iso {
                 color: Iso::Black,
                 bright: false,
             }),
@@ -38,6 +38,7 @@ impl Default for Style {
 // Name: Measure
 // Usage: stores a value with an associated unit
 // -------------
+#[derive(Copy)]
 pub enum Measure {
     Cell(u32),
     Percent(u8), // percent of totle terminal size
@@ -59,6 +60,7 @@ impl Measure {
     }
 }
 
+#[derive(Copy)]
 pub enum Origin {
     TopLeft,
     TopRight,

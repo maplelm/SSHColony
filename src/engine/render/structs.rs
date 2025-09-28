@@ -1,4 +1,5 @@
-use super::types::*;
+#[deny(unused)]
+
 use super::sprites::Sprite;
 use std::time::{Duration, Instant};
 
@@ -27,6 +28,10 @@ impl Canvas {
             width: w,
             height: h,
         }
+    }
+
+    pub fn area(&self) -> usize {
+        self.width * self.height
     }
 }
 

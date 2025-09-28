@@ -12,5 +12,6 @@ pub enum Signal<T: Scene<T>> {
     Batch(Vec<Signal<T>>),
     Sequence(Vec<Signal<T>>),
     Error(Error),
+    Log(String),
 }
 
