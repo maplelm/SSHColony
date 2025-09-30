@@ -49,4 +49,3 @@ impl<T: Scene<T>> Instance<T> {
         self.game_state.push(s);
     }
 }
-

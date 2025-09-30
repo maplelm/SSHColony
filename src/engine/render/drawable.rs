@@ -1,12 +1,12 @@
 #![deny(unused)]
 
-use std::time::{Duration, Instant};
-use std::fmt::Display;
-use term::color::{Background, Foreground};
-use super::{Layer, Canvas};
+use super::{Canvas, Layer};
 use crate::engine::types::Position;
 use crate::engine::ui::style::Justify;
 use crate::engine::ui::{Border, style::Measure};
+use std::fmt::Display;
+use std::time::{Duration, Instant};
+use term::color::{Background, Foreground};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 // Sprites /////////////////////////////////////////////////////////////////////////////////////
@@ -16,18 +16,18 @@ pub struct SpriteBase {
     pub symbol: char,
     pub layer: Layer,
     pub fg: Option<Foreground>,
-    pub bg: Option<Background>
+    pub bg: Option<Background>,
 }
 impl SpriteBase {
     pub fn to_string(&self) -> String {
         let mut s: String;
-        if let Some(fg) = self.fg.as_ref() { 
+        if let Some(fg) = self.fg.as_ref() {
             s = fg.to_ansi();
             s.push(self.symbol);
         } else {
             s = String::from(self.symbol);
         }
-        if let Some(bg) =self.bg.as_ref() {
+        if let Some(bg) = self.bg.as_ref() {
             s.push_str(&bg.to_ansi());
         }
         return s;
@@ -39,17 +39,26 @@ impl SpriteBase {
 
 #[derive(Clone, Debug)]
 pub struct StaticSprite {
+    pub id: u32,
     pub pos: Position<i32>,
-    pub base: SpriteBase
+    pub base: SpriteBase,
 }
 
 impl Display for StaticSprite {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{}{}{}", 
-            if let Some(fg) = &self.base.fg {fg.to_ansi()} else {"".to_string()},
-            if let Some(bg) = &self.base.bg {bg.to_ansi()} else {"".to_string()},
+            "{}{}{}",
+            if let Some(fg) = &self.base.fg {
+                fg.to_ansi()
+            } else {
+                "".to_string()
+            },
+            if let Some(bg) = &self.base.bg {
+                bg.to_ansi()
+            } else {
+                "".to_string()
+            },
             self.base.symbol,
         )
     }
@@ -61,17 +70,17 @@ impl StaticSprite {
     }
 }
 
-
 ////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////
 
 #[derive(Clone, Debug)]
 pub struct DynamicSprite {
+    pub id: u32,
     pub pos: Position<i32>,
     pub sprite_sheet: Vec<SpriteBase>,
     pub tick: Duration,
     pub cursor: usize,
-    pub last_tick: Instant
+    pub last_tick: Instant,
 }
 
 impl DynamicSprite {
@@ -81,7 +90,7 @@ impl DynamicSprite {
             sprite_sheet: ss,
             tick: tick,
             cursor: 0,
-            last_tick: Instant::now()
+            last_tick: Instant::now(),
         }
     }
 
@@ -103,7 +112,6 @@ impl DynamicSprite {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Text /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
- 
 
 #[derive(Clone, Debug)]
 pub struct TextBase {
@@ -121,8 +129,16 @@ impl TextBase {
     // Does not consider the Height measurement
     pub fn to_string(&self, canvas: &Canvas) -> String {
         let width = self.width(canvas);
-        let fg = if let Some(fg) = self.fg.as_ref() { fg.to_ansi()} else {"".to_string()};
-        let bg = if let Some(bg) = self.bg.as_ref() { bg.to_ansi()} else {"".to_string()};
+        let fg = if let Some(fg) = self.fg.as_ref() {
+            fg.to_ansi()
+        } else {
+            "".to_string()
+        };
+        let bg = if let Some(bg) = self.bg.as_ref() {
+            bg.to_ansi()
+        } else {
+            "".to_string()
+        };
         let mut prefix = fg;
         prefix.push_str(&bg);
         let mut output = String::from(&prefix);
@@ -138,16 +154,16 @@ impl TextBase {
     fn get_justfy_gaps(&self, line_width: usize, total_width: usize) -> (usize, usize) {
         let mut extra = total_width;
         if let Some(b) = self.border.as_ref() {
-           extra -= line_width + b.get_pad_left() + b.get_pad_right() + b.width();  
+            extra -= line_width + b.get_pad_left() + b.get_pad_right() + b.width();
         } else {
             extra -= line_width;
         }
         match self.justify {
             Justify::Center => {
                 if extra % 2 == 0 {
-                    (extra/2,extra/2)
+                    (extra / 2, extra / 2)
                 } else {
-                    (extra/2,extra/2+1)
+                    (extra / 2, extra / 2 + 1)
                 }
             }
             Justify::Left => (0, extra),
@@ -182,7 +198,9 @@ impl TextBase {
     }
 
     fn top_border(&self, width: usize, output: &mut String) {
-        if let Some(b) = self.border.as_ref() && !b.is_top_none() {
+        if let Some(b) = self.border.as_ref()
+            && !b.is_top_none()
+        {
             for i in 0..width {
                 output.push(b.get_top(i).unwrap());
             }
@@ -191,10 +209,12 @@ impl TextBase {
     }
 
     fn top_padding(&self, width: usize, output: &mut String, prefix: &str) -> usize {
-        if let Some(b) = self.border.as_ref() && b.get_pad_top() > 0 {
+        if let Some(b) = self.border.as_ref()
+            && b.get_pad_top() > 0
+        {
             let mut iter: usize = 0;
             let mut spacing = String::new();
-            for _ in 0..width-b.width() {
+            for _ in 0..width - b.width() {
                 spacing.push(' ');
             }
             for _ in 0..b.get_pad_top() {
@@ -250,7 +270,7 @@ impl TextBase {
     fn bottom_padding(&self, width: usize, output: &mut String, prefix: &str, mut iter: usize) {
         if let Some(b) = self.border.as_ref() {
             let mut spacing = String::new();
-            for _ in 0..width-b.width() {
+            for _ in 0..width - b.width() {
                 spacing.push(' ');
             }
             for _ in 0..b.get_pad_bottom() {
@@ -268,7 +288,9 @@ impl TextBase {
         }
     }
     fn bottom_border(&self, width: usize, output: &mut String, prefix: &str) {
-        if let Some(b) = self.border.as_ref() && !b.is_bottom_none() {
+        if let Some(b) = self.border.as_ref()
+            && !b.is_bottom_none()
+        {
             output.push_str(prefix);
             for i in 0..width {
                 output.push(b.get_bottom(i).unwrap());
@@ -276,19 +298,26 @@ impl TextBase {
         }
     }
 
-
     fn truncate_line(&self, line: &str, width: usize) -> Option<String> {
         let mut max_len: usize = width;
         if let Some(b) = self.border.as_ref() {
             max_len -= b.width() + b.get_pad_left() + b.get_pad_right();
         }
         if line.len() > max_len {
-            if let Some(l) = line.get(0..line.len().wrapping_sub(line.len().wrapping_sub(max_len)+3)) { 
+            if let Some(l) = line.get(
+                0..line
+                    .len()
+                    .wrapping_sub(line.len().wrapping_sub(max_len) + 3),
+            ) {
                 let mut s = String::from(l.to_string());
                 s.push_str("...");
                 Some(s)
-            } else { 
-                if let Some(l) = line.get(0..line.len().wrapping_sub(max_len)) { Some(l.to_string())} else {None}
+            } else {
+                if let Some(l) = line.get(0..line.len().wrapping_sub(max_len)) {
+                    Some(l.to_string())
+                } else {
+                    None
+                }
             }
         } else {
             None
@@ -302,6 +331,7 @@ impl TextBase {
 
 #[derive(Clone, Debug)]
 pub struct StaticText {
+    pub id: u32,
     pub pos: Position<i32>,
     pub base: TextBase,
 }
@@ -312,12 +342,12 @@ impl StaticText {
     }
 }
 
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Dynamic Text /////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #[derive(Clone, Debug)]
 pub struct DynamicText {
+    pub id: u32,
     pub pos: Position<i32>,
     pub text_sheet: Vec<TextBase>,
     pub tick: Duration,
@@ -344,3 +374,4 @@ impl DynamicText {
         }
     }
 }
+

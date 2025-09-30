@@ -1,3 +1,6 @@
+use super::super::render::Canvas;
 
-pub const CANVAS_WIDTH: usize = 30;
-pub const CANVAS_HEIGHT: usize = 30;
+pub const DEFAULT_CANVAS: Canvas = Canvas {
+    width: 30,
+    height: 30
+};

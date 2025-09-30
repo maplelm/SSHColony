@@ -1,22 +1,23 @@
-use super::super::Error;
-use super::traits::Scene;
-use super::super::types::Position;
 use super::super::super::render::Object;
+use super::super::Error;
+use super::super::types::Position;
+use super::traits::Scene;
 use term::Terminal;
 
 pub enum Signal<T: Scene<T>> {
     None,
     Quit,
     Scenes(SceneSignal<T>),
+    Render(RenderSignal),
     Error(Error),
     Log(String),
     Batch(Vec<Signal<T>>),
     Sequence(Vec<Signal<T>>),
 }
 
-pub enum SceneSignal<T: Scene<T>>{
+pub enum SceneSignal<T: Scene<T>> {
     Pop,
-    New(T)
+    New(T),
 }
 
 pub enum RenderSignal {
@@ -36,13 +37,14 @@ pub enum RenderSignal {
 #[macro_export]
 macro_rules! pop_scene {
     () => {
-       Siganl::Scene(SceneSignal::Pop) 
+        Siganl::Scene(SceneSignal::Pop)
     };
 }
 
 #[macro_export]
 macro_rules! new_scene {
     ($name:ty) => {
-       Signal::Scenes(SceneSignal::New($name))
+        Signal::Scenes(SceneSignal::New($name))
     };
 }
+
