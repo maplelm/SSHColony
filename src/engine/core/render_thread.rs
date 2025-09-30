@@ -373,15 +373,24 @@ mod test {
         let mut grid: Grid = vec![];
         grid.resize(c.width * c.height, None);
 
-        insert_text_msg(Position { x: m.x(), y: m.y() }, m.output(&c), &c, &mut grid);
+        insert_text_msg(Position { x: m.x(), y: m.y() }, match m.output(&c) {
+            Some(out) => out,
+            None => "".to_string()
+        }, &c, &mut grid);
 
-        println!("Raw Menu Output:\n{}", m.output(&c));
+        println!("Raw Menu Output:\n{}", match m.output(&c){
+            Some(out) => out,
+            None => "".to_string()
+        });
         let fg = Foreground::new(Color::None);
         let bg = Background::new(Color::None);
         let mut b = true;
         println!("Grid Output:\r");
         print(&grid, &c, &fg, &bg, &mut b);
-        for (i, ch) in m.output(&c).replace("\n", "").chars().enumerate() {
+        for (i, ch) in match m.output(&c) {
+            Some(out) => out,
+            None => "".to_string()
+        }.replace("\n", "").chars().enumerate() {
             let x: usize = (i % c.width) + 1;
             let y: usize = (i / c.width) + 1;
             let grid_c: char = if let Some(c) = &grid[i] {

@@ -1,52 +1,48 @@
 #![deny(unused)]
+
 use crate::engine::render::Object;
 use crate::engine::ui::style::Justify;
 
 use super::super::render::Canvas;
 use super::{
     super::{render, types::*},
-    Border, DisplayProperties,
+    Border,
     style::{Measure, Origin},
 };
 
 const CURSOR_OFFSET: usize = 2;
 const TOTAL_OFFSET: usize = CURSOR_OFFSET * 2;
 
-// -------------
-// Name: Item
-// Usage: Added to Menus for each option the menu should have
-// -------------
-pub struct Item<I, O> {
-    pub label: String,
-    pub action: fn(I) -> Option<O>,
-}
-
-impl<I, O> Item<I, O> {
-    pub fn new(l: String, a: fn(I) -> Option<O>) -> Self {
-        Self {
-            label: l,
-            action: a,
-        }
-    }
+pub trait MenuItem: std::fmt::Debug  {
+    fn label(&self) -> &str;
+    fn execute(&mut self) -> bool; // return true if there is output to get
 }
 
 //////////////
 ///  MENU  ///
 //////////////
-pub struct Menu<I, O> {
-    display_properties: DisplayProperties,
+#[derive(
+    Debug, serde::Serialize, serde::Deserialize,
+)]
+pub struct Menu {
+    x: usize,
+    y: usize,
+    width:  Option<Measure>,
+    height: Option<Measure>,
+    origin: Origin,
     pub border: Option<Border>,
     pub _label_style: Option<String>,
     pub marker: Object,
     pub justify: Justify,
 
-    items: Vec<Item<I, O>>,
+    #[serde(skip, default="Vec::new")]
+    items: Vec<Box<dyn MenuItem>>,
     cursor: usize,
     max_per_page: u16,
     _page: u16,
 }
 
-impl<I, O> Menu<I, O> {
+impl Menu {
     pub fn new(
         x: usize,
         y: usize,
@@ -55,10 +51,14 @@ impl<I, O> Menu<I, O> {
         origin: Origin,
         justify: Justify,
         border: Option<Border>,
-        items: Vec<Item<I, O>>,
+        items: Vec<Box<dyn MenuItem>>,
     ) -> Self {
         Self {
-            display_properties: DisplayProperties::new(x, y, w, h, origin),
+            x: x,
+            y: y,
+            width: w,
+            height: h,
+            origin: origin,
             items: items,
             border: border,
             _label_style: None,
@@ -71,13 +71,13 @@ impl<I, O> Menu<I, O> {
     }
 
     pub fn x(&self) -> usize {
-        self.display_properties.x
+        self.x
     }
     pub fn y(&self) -> usize {
-        self.display_properties.y
+        self.y
     }
     pub fn width(&self, canvas: &Canvas) -> usize {
-        match &self.display_properties.w {
+        match &self.width {
             // Specified width
             Some(w) => match *w {
                 Measure::Cell(w) => w as usize,
@@ -86,7 +86,7 @@ impl<I, O> Menu<I, O> {
             // Calculate width based on length of line items
             None => {
                 let mut output = 0;
-                output += find_largest_line(&self);
+                output += self.largest_line();
                 if let Some(b) = &self.border {
                     output += b.get_pad_left() + b.get_pad_right() + b.width();
                 }
@@ -96,8 +96,8 @@ impl<I, O> Menu<I, O> {
         }
     }
 
-    pub fn execute(&self, s: I) -> Option<O> {
-        (self.items[self.cursor].action)(s)
+    pub fn execute(&mut self) {
+        self.items[self.cursor].execute();
     }
 
     pub fn cursor_pos(&self) -> Position<usize> {
@@ -115,7 +115,7 @@ impl<I, O> Menu<I, O> {
         self.marker.clone()
     }
 
-    pub fn add(&mut self, item: Item<I, O>) {
+    pub fn add(&mut self, item: Box<dyn MenuItem>) {
         self.items.push(item);
     }
 
@@ -135,205 +135,187 @@ impl<I, O> Menu<I, O> {
         false // did not move
     }
 
-    // TODO: have menu output handle borderless menus
-    pub fn output(&mut self, canvas: &Canvas) -> String {
-        let mut out = String::new();
+    pub fn output(&mut self, canvas: &Canvas) -> Option<String> {
         if self.items.len() == 0 {
-            return out;
+            return None;
         }
-        let mut border_iter: usize = 0;
-        self.max_per_page = calculate_max_per_page(self, canvas);
+        let mut out = String::new();
+        self.update_max_per_page(canvas);
         let width = self.width(canvas);
-        if let Some(b) = self.border.as_mut() {
-            top_border_render(b, &mut out, width);
-            border_iter = top_padding_render(b, &mut out, width, border_iter);
-        }
-        border_iter = line_item_render(self, &mut out, width, border_iter);
-        if let Some(b) = self.border.as_mut() {
-            bottom_padding_render(b, &mut out, width, border_iter);
-            bottom_border_render(b, &mut out, width);
-        }
-        if self.border.is_some() {
-        }
-        return out;
+        let iter = self.render_top_border(&mut out, width);
+        let iter = self.render_item(&mut out, width, iter);
+        self.render_bottom_border(&mut out, width, iter);
+        return Some(out);
     }
-}
 
-fn top_padding_render(b: &mut Border, s: &mut String, width: usize, mut b_iter: usize) -> usize {
-    if b.get_pad_top() == 0 {
-        return b_iter;
-    }
-    for _ in 0..b.get_pad_top() {
-        let mut h_padding = String::new();
-        h_padding.push_str(& if let Some(b) = b.get_left(b_iter) {
-            b.to_string()
-        } else {
-            "".to_string()
-        });
-        for _ in 0..width - b.width() {
-            h_padding.push(' ');
-        }
-        h_padding.push_str(&if let Some(b) = b.get_right(b_iter){
-            b.to_string()
-        } else {
-            "".to_string()
-        });
-        h_padding.push('\n');
-        s.push_str(&h_padding);
-        b_iter += 1;
-    }
-    b_iter
-}
-
-fn top_border_render(b: &mut Border, s: &mut String, width: usize) {
-    // Top Border
-    let mut b_iter: usize = 0;
-    let mut h_border = String::new();
-    while let Some(c) = b.get_top(b_iter) && h_border.len() < width{
-        h_border.push(c);
-        b_iter += 1;
-    }
-    s.push_str(&h_border);
-    s.push('\n');
-}
-
-fn line_item_render<I, O>(menu: &mut Menu<I, O>, s: &mut String, width: usize, mut b_iter: usize) -> usize {
-    for (i, item) in menu.items.iter().enumerate() {
-        let mut line = String::new();
-        line_border_padding_offset_left(&mut line, &menu.border, i == menu.cursor, b_iter);
-        if i == menu.cursor {
-            line.push_str(&menu.marker.sprite().to_string());
-            line.push(' ');
-        }
-        let (lspace, rspace) = line_space_calc(menu, item.label.len(), width);
-
-        for _ in 0..lspace {
-            line.push(' ');
-        }
-        line.push_str(&item.label);
-        for _ in 0..rspace {
-            line.push(' ');
-        }
-
-        line_border_padding_offset_rigth(&mut line, &menu.border, b_iter);
-
-        line.push('\n');
-        s.push_str(&line);
-        b_iter += 1;
-    }
-    b_iter
-}
-
-fn bottom_padding_render(b: &mut Border, s: &mut String, width: usize, mut b_iter: usize) -> usize {
-    if b.get_pad_bottom() == 0 {
-        return b_iter;
-    }
-    for _ in 0..b.get_pad_bottom() {
-        let mut h_padding = 
-            if let Some(b) = b.get_left(b_iter){
-                b.to_string()
-            } else {
-                "".to_string()
-        };
-        for _ in 0..width - b.width() {
-            h_padding.push(' ');
-        }
-        h_padding.push_str(
-            &if let Some(b) = b.get_right(b_iter) {
-                b.to_string()
-            } else {
-                "".to_string()
+    fn render_bottom_border(&self, output: &mut String, width: usize, mut iter: usize) {
+        if let Some(b) = &self.border {
+            let mut spacing = String::new();
+            for _ in 0..width - b.width() {
+                spacing.push(' ');
             }
-        );
-        h_padding.push('\n');
-        s.push_str(&h_padding);
-        b_iter += 1;
-    }
-    b_iter
-}
+            let mut line = String::new();
+            for _ in 0..b.get_pad_bottom() {
+                if let Some(l) = b.get_left(iter) {
+                    line.push(l);
+                }
+                line.push_str(&spacing);
+                if let Some(r) = b.get_right(iter) {
+                    line.push(r);
+                }
+                line.push('\n');
+                iter += 1;
+            }
 
-fn bottom_border_render(b: &mut Border, s: &mut String, width: usize) {
-    let mut b_iter: usize = 0;
-    for _ in 0..width {
-        if let Some(c) = b.get_bottom(b_iter) {
-            s.push(c);
+            for i in 0..width {
+                if let Some(c) = b.get_bottom(i) {
+                    line.push(c)
+                }
+            }
+            output.push_str(&line);
         }
-        b_iter += 1;
     }
-}
 
-fn find_largest_line<I, O>(menu: &Menu<I, O>) -> usize {
-    if menu.items.len() < 1 {
+    fn render_top_border(&mut self, output: &mut String, width: usize) -> usize {
+        if let Some(b) = &self.border {
+            // Generate Top Border
+            let mut line = String::new();
+            let mut iter: usize = 0;
+            while let Some(c) = b.get_top(iter)
+                && line.len() < width
+            {
+                line.push(c);
+                iter += 1;
+            }
+            output.push_str(&line);
+            output.push('\n');
+
+            // Generate top padding
+            if b.get_pad_top() == 0 {
+                return 0;
+            }
+            line.clear();
+            let mut spacing = String::new();
+            for _ in 0..width - b.width() {
+                spacing.push(' ');
+            }
+
+            iter = 0;
+            for _ in 0..b.get_pad_top() {
+                if let Some(l) = b.get_left(iter) {
+                    line.push(l);
+                }
+                line.push_str(&spacing);
+                if let Some(r) = b.get_right(iter) {
+                    line.push(r);
+                }
+                iter += 1;
+                line.push('\n');
+            }
+            output.push_str(&line);
+            return iter;
+        }
         return 0;
     }
-    let mut max = menu.items[0].label.len();
-    for line in menu.items.iter() {
-        if line.label.len() > max {
-            max = line.label.len();
+
+    fn justify_line(&self, ll: usize, mut width: usize) -> (usize, usize) {
+        if let Some(b) = &self.border {
+            width -= ll + b.get_pad_left() + b.get_pad_right() + b.width() + TOTAL_OFFSET;
+        } else {
+            width -= ll + TOTAL_OFFSET;
+        }
+        match self.justify {
+            Justify::Left => (0, width),
+            Justify::Right => (width, 0),
+            Justify::Center => {
+                if width % 2 != 0 {
+                    (width / 2, width / 2 + 1)
+                } else {
+                    (width / 2, width / 2)
+                }
+            }
         }
     }
-    max
-}
 
-fn calculate_max_per_page<I, O>(menu: &mut Menu<I, O>, canvas: &Canvas) -> u16 {
-    let mut max: usize;
-    if let Some(h) = &menu.display_properties.h {
-        max = h.get(canvas.height);
-        if let Some(b) = &menu.border {
-            max -= b.get_pad_top() + b.get_pad_bottom() + b.height();
-        }
-    } else {
-        max = canvas.height;
-        if let Some(b) = &menu.border {
-            max -= b.get_pad_top() + b.get_pad_bottom() + b.height();
+    fn construct_left_side(&self, line: &mut String, index: usize, iter: usize) {
+        if let Some(b) = &self.border {
+            // If Menu has left border
+            if let Some(lb) = b.get_left(iter) {
+                line.push(lb);
+            }
+            for _ in 0..(if index == self.cursor {
+                b.get_pad_left()
+            } else {
+                b.get_pad_left() + CURSOR_OFFSET
+            }) {
+                line.push(' ');
+            }
         }
     }
-    return max as u16;
-}
 
-fn line_border_padding_offset_rigth(line: &mut String, b: &Option<Border>, b_iter: usize) {
-        if let Some(b) = b {
+    fn construct_right_side(&self, line: &mut String, iter: usize) {
+        if let Some(b) = &self.border {
             for _ in 0..b.get_pad_right() + CURSOR_OFFSET {
                 line.push(' ');
             }
-            if let Some(c) = b.get_right(b_iter) {
+            if let Some(c) = b.get_right(iter) {
                 line.push(c);
             }
         }
-}
+        line.push('\n');
+    }
 
-fn line_border_padding_offset_left(line: &mut String, b: &Option<Border>, is_cursor_line: bool, b_iter: usize) {
-    if let Some(b) = b {
-        if let Some(c) = b.get_left(b_iter) {
-            line.push(c);
-        }
-        if is_cursor_line {
-            for _ in 0..b.get_pad_left() {
+    fn render_item(&mut self, s: &mut String, width: usize, mut b_iter: usize) -> usize {
+        for (i, item) in self.items.iter().enumerate() {
+            let mut line = String::new();
+            self.construct_left_side(&mut line, i, b_iter);
+            let (just_left, just_right) = self.justify_line(item.label().len(), width);
+            for _ in 0..just_left {
                 line.push(' ');
             }
+            if i == self.cursor {
+                line.push_str(&self.marker.sprite().to_string());
+                line.push(' ');
+            }
+            line.push_str(item.label());
+            for _ in 0..just_right {
+                line.push(' ');
+            }
+            self.construct_right_side(&mut line, b_iter);
+
+            s.push_str(&line);
+            b_iter += 1;
+        }
+        return b_iter;
+    }
+
+    fn largest_line(&self) -> usize {
+        if self.items.len() == 0 {
+            return 0;
+        }
+        let mut max = self.items[0].label().len();
+        for each in self.items.iter() {
+            if each.label().len() > max {
+                max = each.label().len();
+            }
+        }
+        return max;
+    }
+
+    fn update_max_per_page(&mut self, canvas: &Canvas) {
+        let mut max: usize;
+        if let Some(h) = &self.height {
+            max = h.get(canvas.height - self.y);
+            if let Some(b) = &self.border {
+                max -= b.get_pad_top() + b.get_pad_bottom() + b.height();
+            }
+            self.max_per_page = max as u16;
         } else {
-            for _ in 0..b.get_pad_left() + CURSOR_OFFSET {
-                line.push(' ');
+            max = canvas.height - self.y;
+            if let Some(b) = &self.border {
+                max -= b.get_pad_top() + b.get_pad_bottom() + b.height();
             }
-        }
-    }
-}
-
-fn line_space_calc<I, O>(menu: &Menu<I, O>, label_len: usize, width: usize) -> (usize, usize) {
-    let mut extra = width;
-    if let Some(b) = &menu.border {
-        extra -= label_len + b.get_pad_left() + b.get_pad_right() + b.width() + TOTAL_OFFSET;
-    } else {
-        extra -= label_len + TOTAL_OFFSET;
-    }
-    match menu.justify {
-        Justify::Left => (0, extra),
-        Justify::Right => (extra, 0),
-        Justify::Center => {
-            if extra % 2 == 0 {
-                return (extra / 2, extra / 2);
-            }
-            return (extra / 2, extra / 2 + 1);
+            self.max_per_page = max as u16;
         }
     }
 }
@@ -344,13 +326,36 @@ mod test {
 
     use super::*;
 
+    #[derive(Debug)]
+    struct TestItem {
+        name: String
+    }
+
+    impl TestItem {
+        pub fn new(name: String) -> Box<Self> {
+            Box::new(Self {name: name})
+        }
+    }
+
+    impl MenuItem for TestItem {
+        fn execute(&mut self) -> bool {
+            false
+        }
+        fn output(&mut self) -> Output {
+           Output::None 
+        }
+        fn label(&self) -> &str {
+            &self.name
+        }
+    }
+
     #[test]
     fn dynamic_length_menu() {
         let s1 = String::from("testing");
         let s2 = String::from("testing again");
         let s3 = String::from("testing and again");
         let c = Canvas::new(100, 7);
-        let mut m = Menu::<(), ()>::new(
+        let mut m = Menu::new(
             0,
             0,
             None,
@@ -362,12 +367,15 @@ mod test {
                 Padding::square(1),
             )),
             vec![
-                Item::new(s1, |_| None),
-                Item::new(s2, |_| None),
-                Item::new(s3.clone(), |_| None),
+                TestItem::new(s1),
+                TestItem::new(s2),
+                TestItem::new(s3.clone()),
             ],
         );
-        let output = m.output(&c);
+        let output = match m.output(&c) {
+            Some(out) => out,
+            None => "".to_string(),
+        };
         println!("{}", output);
         for each in output.split('\n') {
             assert_eq!(each.len(), s3.len() + 8);
@@ -377,7 +385,7 @@ mod test {
     #[test]
     fn fixed_length_menu() {
         let c = Canvas::new(40, 7);
-        let mut m = Menu::<(), ()>::new(
+        let mut m = Menu::new(
             0,
             0,
             Some(Measure::Percent(100)),
@@ -389,12 +397,15 @@ mod test {
                 Padding::square(1),
             )),
             vec![
-                Item::new("testing".to_string(), |_| None),
-                Item::new("testing again".to_string(), |_| None),
-                Item::new("testing and again".to_string(), |_| None),
+                TestItem::new("testing".to_string()),
+                TestItem::new("testing again".to_string()),
+                TestItem::new("testing and again".to_string()),
             ],
         );
-        let out = m.output(&c);
+        let out = match m.output(&c) {
+            Some(out) => out,
+            None => "".to_string(),
+        };
         println!("{}", out);
         for each in out.split('\n') {
             assert_eq!(each.len(), c.width);

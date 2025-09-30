@@ -1,6 +1,6 @@
 use super::{
     enums::{Msg, Object},
-    structs::Canvas,
+    canvas::Canvas,
     super::{
         traits::Scene, enums::Signal, input::Event, types::*
     }

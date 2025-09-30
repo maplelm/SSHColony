@@ -1,4 +1,4 @@
-use crate::engine::core::consts::DEFAULT_CANVAS;
+use crate::engine::{core::consts::DEFAULT_CANVAS, enums::SceneSignal};
 
 use super::super::{
     AudioMsg, Context, Error,
@@ -16,7 +16,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub fn start<T: Scene<T> + Copy >(mut ins: Instance<T>) -> Result<(), Error> {
+pub fn start<T: Scene<T>>(mut ins: Instance<T>) -> Result<(), Error> {
     ins.term_orig = term::set_raw();
     ins.term_orig.toggle_alt_buffer();
     ins.term_orig.toggle_cursor_visable();
@@ -50,7 +50,7 @@ pub fn start<T: Scene<T> + Copy >(mut ins: Instance<T>) -> Result<(), Error> {
     }
 }
 
-fn main_loop<T: Scene<T> + Copy>(
+fn main_loop<T: Scene<T>>(
     mut ins: Instance<T>,
     render_tx: mpsc::Sender<Msg>,
     event_rx: mpsc::Receiver<Event>,
@@ -75,7 +75,7 @@ fn main_loop<T: Scene<T> + Copy>(
     Ok(())
 }
 
-fn dispatch<T: Scene<T> + Copy>(
+fn dispatch<T: Scene<T>>(
     mut ins: Instance<T>,
     sig: Signal<T>,
     render_tx: &mpsc::Sender<Msg>,
@@ -83,27 +83,31 @@ fn dispatch<T: Scene<T> + Copy>(
     match sig {
         Signal::None => {}
         Signal::Quit => ins.ctx.cancel(),
-        Signal::PopScene => {
-            ins.game_state.pop();
-            let index = ins.game_state.len() - 1;
-            ins.game_state
-                .get_mut(index)
-                .unwrap()
-                .resume(render_tx, &ins.canvas);
-        }
-        Signal::NewScene(mut s) => {
-            if ins.game_state.len() > 0 {
-                let index = ins.game_state.len() - 1;
-                ins.game_state.get_mut(index).unwrap().suspend(render_tx);
+        Signal::Scenes(ss) => {
+            match ss {
+                SceneSignal::New(mut ns) => {
+                    if ins.game_state.len() > 0 {
+                        let index = ins.game_state.len() - 1;
+                        ins.game_state.get_mut(index).unwrap().suspend(render_tx);
+                    }
+                    let sig = ns.init(render_tx, &ins.canvas);
+                    match dispatch(ins, sig, render_tx) {
+                        Ok(i) => ins = i,
+                        Err(e) => return Err(e),
+                    }
+                    ins.add_scene(ns);
+
+                        }
+                SceneSignal::Pop => {
+                    ins.game_state.pop();
+                    let index = ins.game_state.len() - 1;
+                    ins.game_state
+                        .get_mut(index)
+                        .unwrap()
+                        .resume(render_tx, &ins.canvas);
+                }
             }
-            let sig = s.init(render_tx, &ins.canvas);
-            match dispatch(ins, sig, render_tx) {
-                Ok(i) => ins = i,
-                Err(e) => return Err(e),
-            }
-            ins.add_scene(s);
         }
-        Signal::TerminalState(t) => ins.term_orig = t,
         Signal::Batch(mut v) => {
             while v.len() > 0 {
                 match dispatch(ins, v.swap_remove(0), render_tx) {

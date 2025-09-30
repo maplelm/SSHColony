@@ -1,35 +1,36 @@
 #![deny(unused)]
 
+
 use crate::{
     engine::{
         enums::Signal,
         input::{Event, KeyEvent},
-        render::{self, Canvas, insert_text},
+        render::{self, insert_text, Canvas},
         types::Position,
         ui::{
-            Border, BorderSprite, Menu, MenuItem, Padding,
-            style::{Justify, Origin},
+            style::{Justify, Origin}, Border, BorderSprite, Menu, MenuItem, Output, Padding
         },
     },
     game::{Game, LoadGame, Settings},
 };
+use std::sync::mpsc::Sender;
 
 enum Signals {
     Quit,
     NewScene(Game),
 }
 
-use std::{sync::mpsc};
+use std::sync::mpsc;
 
-pub struct MainMenu<'a> {
-    menu: Menu<&'a MainMenu<'a>, Signals>,
+pub struct MainMenu {
+    menu: Menu,
     init_complete: bool,
 }
 
-impl<'a, 'b> MainMenu<'a> {
+impl MainMenu {
     pub fn new() -> Game {
         Game::MainMenu(Self {
-            menu: Menu::<&MainMenu, Signals>::new(
+            menu: Menu::new(
                 0,
                 1,
                 None, //Some(Measure::Cell(10)),
@@ -41,21 +42,14 @@ impl<'a, 'b> MainMenu<'a> {
                     Padding::square(2),
                 )),
                 vec![
-                    MenuItem {
-                        label: String::from("Play"),
-                        action: |_g: &MainMenu| -> Option<Signals> {
-                            Some(Signals::NewScene(LoadGame::new()))
-                        },
-                    },
+                    LoadGameItem::new("Play"),
                     MenuItem {
                         label: String::from("Settings"),
-                        action: |_g: &MainMenu| -> Option<Signals> {
-                            Some(Signals::NewScene(Settings::new()))
-                        },
+                        action: |_| -> Option<Signals> { Some(Signals::NewScene(Settings::new())) },
                     },
                     MenuItem {
                         label: String::from("Quit"),
-                        action: |_g: &MainMenu| -> Option<Signals> { Some(Signals::Quit) },
+                        action: |_| -> Option<Signals> { Some(Signals::Quit) },
                     },
                 ],
             ),
@@ -64,12 +58,14 @@ impl<'a, 'b> MainMenu<'a> {
     }
 
     pub fn init(&mut self, render_tx: &mpsc::Sender<render::Msg>, canvas: &Canvas) -> Signal<Game> {
-        let _ = render_tx.send(render::Msg::InsertText {
-            pos: Position::new(self.menu.x(), self.menu.y()),
-            text: self.menu.output(canvas),
-            prefix: None,
-            suffix: None,
-        });
+        if let Some(out) = self.menu.output(canvas) {
+            let _ = render_tx.send(render::Msg::InsertText {
+                pos: Position::new(self.menu.x(), self.menu.y()),
+                text: out,
+                prefix: None,
+                suffix: None,
+            });
+        }
         self.init_complete = true;
 
         Signal::None
@@ -80,7 +76,7 @@ impl<'a, 'b> MainMenu<'a> {
     }
 
     pub fn update(
-        &'b mut self,
+        &mut self,
         _delta_time: f32,
         event: &mpsc::Receiver<Event>,
         render_tx: &mpsc::Sender<render::Msg>,
@@ -98,7 +94,7 @@ impl<'a, 'b> MainMenu<'a> {
                         let _ = render::insert_text(1, 1, "Term RPG".to_string(), render_tx);
                     }
                     KeyEvent::Up | KeyEvent::Char('w') => {
-                        let pre_pos = {self.menu.cursor_pos()};
+                        let pre_pos = { self.menu.cursor_pos() };
                         if self.menu.cursor_up(1) {
                             let _ = render_tx.send(render::Msg::Batch(vec![
                                 render::Msg::Remove(pre_pos),
@@ -122,7 +118,7 @@ impl<'a, 'b> MainMenu<'a> {
                         }
                     }
                     KeyEvent::Right | KeyEvent::Char('d') => {
-                        if let Some(output) = self.menu.execute(self) {
+                        if let Some(output) = self.menu.execute(()) {
                             match output {
                                 Signals::Quit => {
                                     signals.push(Signal::Quit);
@@ -157,14 +153,17 @@ impl<'a, 'b> MainMenu<'a> {
     }
     pub fn reset(&mut self) {}
     pub fn resume(&mut self, render_tx: &mpsc::Sender<render::Msg>, canvas: &Canvas) {
-        let _ = insert_text(
-            self.menu.x(),
-            self.menu.y(),
-            self.menu.output(canvas),
-            render_tx,
-        );
+        if let Some(out) = self.menu.output(canvas) {
+            let _ = insert_text(self.menu.x(), self.menu.y(), out, render_tx);
+        }
     }
     #[allow(unused)]
-    pub fn suspend(&mut self, render_tx: &mpsc::Sender<render::Msg>) {
-    }
+    pub fn suspend(&mut self, render_tx: &mpsc::Sender<render::Msg>) {}
 }
+
+//crate::menu_item_scene_push!{Game, LoadGame::new(), LoadGameItem}
+
+
+//crate::menu_item_scene_push!{Game, Settings::new(), SettingsItem}
+
+//crate::new_scene!{Game, TestingThisMacro, {Signal::None}, true, false, {Signal::None}, {}, {}, {}, testing{name: String, test: bool, x: u32, y: u32}}

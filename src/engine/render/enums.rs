@@ -1,143 +1,133 @@
-use std::{
-    sync::mpsc,
-    time::{Duration, Instant},
-};
-
+use std::{sync::mpsc, fmt::Display, time::{Duration, Instant}};
+use crate::engine::{types::Position, ui::Border};
 use term::color::{Foreground, Background};
+use super::{drawable::*, Canvas};
+use crate::engine::{traits::Storeable, types as enginetypes, ui::style::{Measure, Justify}};
+ 
+#[derive(Clone, Debug)]
+enum Static {
+    Sprite(StaticSprite),
+    Text(StaticText)
+ }
 
-use super::{sprites::Sprite, structs::*};
-use crate::engine::{traits::Storeable, types as enginetypes};
+#[derive(Clone, Debug)]
+enum Dynamic {
+    Sprite(DynamicSprite),
+    Text(DynamicText)
+}
 
-#[derive(
-    Clone, Hash, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
-)]
+#[derive(Clone, Debug)]
 pub enum Object {
-    Static {
-        name: Option<String>,
-        sprite: Sprite,
-    },
-    Dynamic {
-        name: Option<String>,
-        sprite: Vec<Sprite>,
-        tick: Duration,
-        #[serde(skip_serializing, skip_deserializing, default = "Object::new_cursor")]
-        cursor: usize,
-        #[serde(skip_serializing, skip_deserializing, default = "Instant::now")]
-        last_tick: Instant,
-    },
+    Static (Static),
+    Dynamic (Dynamic),
 }
 
-impl Storeable for Object {
-    type Key = String;
-    fn key(&self) -> Self::Key {
-        match self.name() {
-            Some(n) => n.clone(),
-            None => "".to_string(),
-        }
-    }
-}
 
 impl Object {
-    pub fn name(&self) -> &Option<String> {
+    pub fn pos(&self) -> Position<i32> {
         match self {
-            Object::Static { name, .. } => name,
-            Object::Dynamic { name, .. } => name,
+            Self::Static(s) => match s {
+                Static::Sprite(s) => s.pos,
+                Static::Text(t) => t.pos
+            },
+            Self::Dynamic(d) => match d {
+                Dynamic::Sprite(s) => s.pos,
+                Dynamic::Text(t) => t.pos
+            }
         }
-    }
-    fn new_cursor() -> usize {
-        0
     }
 
-    pub fn as_dynamic(&self) -> Option<&Object> {
-        if let Object::Dynamic { .. } = self {
-            Some(self)
-        } else {
-            None
-        }
-    }
-    pub fn as_dynamic_mut(&mut self) -> Option<&mut Object> {
-        if let Object::Dynamic { .. } = self {
-            Some(self)
-        } else {
-            None
-        }
-    }
-    pub fn as_static(&self) -> Option<&Object> {
-        if let Object::Static { .. } = self {
-            Some(self)
-        } else {
-            None
-        }
-    }
-    pub fn as_static_mut(&mut self) -> Option<&mut Object> {
-        if let Object::Static { .. } = self {
-            Some(self)
-        } else {
-            None
-        }
-    }
-    pub fn sprite(&self) -> &Sprite {
+    pub fn to_string(&self, canvas: &Canvas) -> String {
         match self {
-            Object::Dynamic { sprite, cursor, .. } => &sprite[*cursor],
-            Object::Static { sprite, .. } => sprite,
+            Self::Static(s) => match s {
+                Static::Sprite(s) => s.to_string(),
+                Static::Text(t) => t.to_string(canvas)
+            },
+            Self::Dynamic(d) => match d {
+                Dynamic::Sprite(s) => s.to_string(),
+                Dynamic::Text(t) => t.to_string(canvas)
+            }
         }
     }
-    pub fn new_static(sym: char, bg: Option<Background>, fg: Option<Foreground>) -> Object {
-        Object::Static {
-            sprite: Sprite::new(sym, bg, fg),
-            name: None,
-        }
+
+    pub fn as_static_sprite(pos: Position<i32>, sym: char, layer: Layer, fg: Option<Foreground>, bg: Option<Background>) -> Self {
+        Self::Static(
+            Static::Sprite(
+                StaticSprite { 
+                    pos: pos, 
+                    base: SpriteBase { 
+                        symbol: sym, 
+                        layer: layer, 
+                        fg: fg, 
+                        bg: bg 
+                    }
+                }
+            )
+        )
     }
-    pub fn new_dynamic(s: Vec<Sprite>, tick: std::time::Duration) -> Option<Object> {
-        if s.len() < 1 {
-            return None;
-        }
-        return Some(Object::Dynamic {
-            name: None,
-            sprite: s,
-            cursor: 0,
-            tick: tick,
-            last_tick: std::time::Instant::now(),
-        });
+
+    pub fn as_dyn_sprite(pos: Position<i32>, tick: Duration, sheet: Vec<SpriteBase>) -> Self {
+        Self::Dynamic(
+            Dynamic::Sprite(
+                DynamicSprite { 
+                    pos: pos,
+                    sprite_sheet: sheet,
+                    tick: tick, 
+                    cursor: 0, 
+                    last_tick: Instant::now() 
+                }
+            )
+        )
     }
+
+    pub fn as_static_text(pos: Position<i32>, text: String, layer: Layer, justify: Justify, width: Option<Measure>, height: Option<Measure>, border: Option<Border>, fg: Option<Foreground>, bg: Option<Background>) -> Self {
+        Self::Static(
+            Static::Text(
+                StaticText { 
+                    pos: pos,
+                    base: TextBase { 
+                        text: text, 
+                        layer: layer, 
+                        justify: justify, 
+                        width: width, 
+                        height: height, 
+                        border: border, 
+                        fg: fg, 
+                        bg: bg  
+                    }
+                }
+            )
+        )
+    }
+
+    pub fn as_dyn_text(pos: Position<i32>, sheet: Vec<TextBase>, tick: Duration) -> Self {
+        Self::Dynamic(
+            Dynamic::Text(DynamicText { 
+                pos: pos, 
+                text_sheet: sheet, 
+                tick:tick, 
+                cursor: 0, 
+                last_tick: Instant::now()
+            })
+        
+        )
+    }
+    
     pub fn is_dynamic(&self) -> bool {
         match self {
-            Object::Static { .. } => false,
-            Object::Dynamic { .. } => true,
+            Object::Static(_) => false,
+            Object::Dynamic(_) => true,
         }
     }
 
     pub fn update(&mut self) -> bool {
         match self {
-            Object::Static { .. } => false,
-            Object::Dynamic {
-                sprite,
-                last_tick,
-                cursor,
-                tick,
-                ..
-            } => {
-                let now = Instant::now();
-                if now.duration_since(*last_tick) >= *tick {
-                    if *cursor == sprite.len() - 1 {
-                        *cursor = 0;
-                    } else {
-                        *cursor += 1;
-                    }
-                    *last_tick = now;
-                    return true;
-                }
-                return false;
+            Self::Static(_) => false,
+            Self::Dynamic(d) => match d {
+                Dynamic::Sprite(s) => s.update(),
+                Dynamic::Text(t) => t.update()
             }
         }
-    }
-    pub fn insert(
-        self,
-        x: usize,
-        y: usize,
-        sender: &mpsc::Sender<Msg>,
-    ) -> Result<(), mpsc::SendError<Msg>> {
-        sender.send(Msg::Insert(enginetypes::Position::new(x, y), self))
     }
 }
 
@@ -162,4 +152,11 @@ pub enum Msg {
     Batch(Vec<Msg>),
     TermSizeChange(u32, u32),
     Clear,
+}
+
+#[derive(Clone, Hash, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+pub enum Layer {
+    Background,
+    Middleground,
+    Foreground
 }

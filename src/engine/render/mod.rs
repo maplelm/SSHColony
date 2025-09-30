@@ -1,8 +1,8 @@
 mod enums;
-mod structs;
+mod canvas;
 mod functions;
-pub mod sprites;
+mod drawable;
 
-pub use structs::Canvas;
-pub use enums::*;
+pub use canvas::Canvas;
+pub use enums::{Msg, Object, Layer};
 pub use functions::*;

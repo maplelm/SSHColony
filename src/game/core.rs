@@ -63,7 +63,7 @@ impl Scene<Game> for Game {
             Game::MainMenu(s) => s.suspend(render_tx),
             Game::Settings(s) => s.suspend(),
             Game::InGame(s) => s.suspend(),
-            Game::LoadGame(s) => s.suspend(),
+            Game::LoadGame(s) => s.suspend(render_tx),
         }
     }
     fn update(
@@ -77,7 +77,7 @@ impl Scene<Game> for Game {
             Game::MainMenu(s) => s.update(delta_time, event, render_tx, canvas),
             Game::Settings(s) => s.update(delta_time, event, render_tx, canvas),
             Game::InGame(s) => s.update(delta_time, event, render_tx, canvas),
-            Game::LoadGame(s) => s.update(event, render_tx, canvas),
+            Game::LoadGame(s) => s.update(delta_time, event, render_tx, canvas)
         }
     }
 }

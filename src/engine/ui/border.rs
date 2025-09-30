@@ -3,7 +3,7 @@ use std::fmt::Display;
 use std::ops::{Index, IndexMut};
 use std::str;
 
-#[derive(Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 pub enum BorderSprite {
     Char(char),
     String(String),
@@ -28,7 +28,7 @@ impl BorderSprite {
 
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 pub struct Padding {
     pub top: usize,
     pub bottom: usize,
@@ -67,7 +67,7 @@ impl Default for Padding {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 pub struct Border {
     top: BorderSprite,
     bottom: BorderSprite,
@@ -87,14 +87,54 @@ impl Border {
         }
     }
 
-    fn test() {
-
-        let x = Border::new()
-            .top(BorderSprite::Char('#'))
-            .bottom(BorderSprite::Char('-'))
-            .pad_bottom(2);
-
+    pub fn is_top_none(&self) ->bool {
+        match self.top {
+            BorderSprite::None => true,
+            _ => false
+        }
     }
+
+    pub fn is_bottom_none(&self) ->bool {
+        match self.bottom {
+            BorderSprite::None => true,
+            _ => false
+        }
+    }
+
+    pub fn is_left_none(&self) ->bool {
+        match self.left {
+            BorderSprite::None => true,
+            _ => false
+        }
+    }
+
+    pub fn is_right_none(&self) ->bool {
+        match self.right {
+            BorderSprite::None => true,
+            _ => false
+        }
+    }
+
+    pub fn from_str(s: &str) -> Self {
+        Self {
+            top: BorderSprite::String(s.to_string()),
+            bottom: BorderSprite::String(s.to_string()),
+            left: BorderSprite::String(s.to_string()),
+            right: BorderSprite::String(s.to_string()),
+            padding: Padding::square(0)
+        }
+    }
+
+    pub fn from_string(s: &String) -> Self {
+        Self {
+            top: BorderSprite::String(s.clone()),
+            bottom: BorderSprite::String(s.clone()),
+            left: BorderSprite::String(s.clone()),
+            right: BorderSprite::String(s.clone()),
+            padding: Padding::square(0)
+        }
+    } 
+
 
     pub fn top(mut self, sprite: BorderSprite) -> Self {
         self.top = sprite;
@@ -128,6 +168,11 @@ impl Border {
 
     pub fn pad_left(mut self, val: usize) -> Self {
         self.padding.left = val;
+        self
+    }
+
+    pub fn pad(mut self, pad: Padding) -> Self {
+        self.padding = pad;
         self
     }
 

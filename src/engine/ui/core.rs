@@ -5,7 +5,6 @@ pub trait UIElement<R> {
     fn output(&self) -> String;
 }
 
-#[derive(Copy)]
 pub struct DisplayProperties {
     pub x: usize,
     pub y: usize,

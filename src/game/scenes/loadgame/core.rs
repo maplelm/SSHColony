@@ -11,7 +11,8 @@ use crate::engine::{
 };
 use crate::game::Game;
 use std::fs::{self, DirEntry};
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::{Sender, Receiver};
+use crate::engine::input::Event;
 use std::path::Path;
 use super::super::super::types::World;
 
@@ -22,8 +23,9 @@ enum Signal {
 }
 
 
+#[derive(Copy)]
 pub struct LoadGame {
-    menu: Menu<Option<DirEntry>, Signal>,
+    menu: Menu,
     is_init: bool,
 }
 
@@ -60,6 +62,24 @@ impl LoadGame {
         ));
         EngineSignal::None
     }
+
+    pub fn is_init(&self) -> bool {
+        true
+    }
+
+    pub fn is_paused(&self) -> bool {
+        false
+    }
+
+    pub fn reset(&mut self) {}
+
+    pub fn resume(&mut self, render_tx: &Sender<Msg>, canvas: &Canvas) {
+        
+    }
+
+    pub fn suspend(&mut self, render_tx: &Sender<Msg>) {}
+
+    pub fn update(&mut self, delta_time: f32, event: &Receiver<Event>, render_tx: &Sender<Msg>, canvas: &Canvas) -> EngineSignal<Game> { EngineSignal::None}
 }
 
 fn add_load_files_to_menu(menu: &mut Menu<Option<DirEntry>, Signal>, files: &Vec<DirEntry>) {

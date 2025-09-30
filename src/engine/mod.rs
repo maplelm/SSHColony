@@ -19,3 +19,6 @@ pub mod input;
 pub mod ui;
 
 pub mod types;
+
+#[macro_use]
+pub mod macros;

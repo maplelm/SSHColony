@@ -38,7 +38,7 @@ impl Default for Style {
 // Name: Measure
 // Usage: stores a value with an associated unit
 // -------------
-#[derive(Copy)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 pub enum Measure {
     Cell(u32),
     Percent(u8), // percent of totle terminal size
@@ -60,7 +60,9 @@ impl Measure {
     }
 }
 
-#[derive(Copy)]
+#[derive(
+    Clone, Hash, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum Origin {
     TopLeft,
     TopRight,
@@ -69,6 +71,9 @@ pub enum Origin {
     Center,
 }
 
+#[derive(
+    Clone, Hash, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum Justify {
     Left,
     Right,
