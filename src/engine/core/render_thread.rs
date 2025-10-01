@@ -1,27 +1,25 @@
 #![deny(unused)]
 
-use crate::engine::enums::RenderSignal;
-
-use crate::engine::render::{RenderUnit, RenderUnitId};
-use crate::engine::types::Position3D;
-
 #[cfg(not(test))]
 use super::super::ui::style::{CLEAR_COLORS, CURSOR_HOME};
 use super::super::{
     Context,
     input::Event,
+    enums::RenderSignal,
     input::OtherEvent,
-    render::{Canvas, Layer, Object},
-    types::{Position, SparseSet},
+    render::{Canvas, Layer, Object, RenderUnit, RenderUnitId},
+    types::{SparseSet, Position3D},
 };
 use std::{
     cell::RefCell,
     rc::{Rc, Weak},
     sync::{Arc, mpsc},
 };
-
 use term::color::{Background, Color, Foreground};
 
+ //////////////////
+ // Type Aliases //
+ //////////////////
 type Grid = SparseSet<RenderUnit>;
 type DynRefList = Vec<Weak<RefCell<Object>>>;
 
