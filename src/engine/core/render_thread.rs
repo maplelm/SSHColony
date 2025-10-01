@@ -1,131 +1,161 @@
 #![deny(unused)]
 
+use crate::engine::enums::RenderSignal;
+
+use crate::engine::render::{RenderUnit, RenderUnitId};
+use crate::engine::types::Position3D;
+
 #[cfg(not(test))]
 use super::super::ui::style::{CLEAR_COLORS, CURSOR_HOME};
-use term::color::{Color, Foreground, Background};
 use super::super::{
     Context,
     input::Event,
     input::OtherEvent,
-    render::{Canvas, Msg, Object},
-    types::Position,
+    render::{Canvas, Layer, Object},
+    types::{Position, SparseSet},
 };
 use std::{
     cell::RefCell,
     rc::{Rc, Weak},
-    sync::mpsc,
+    sync::{Arc, mpsc},
 };
 
-type Grid = Vec<Option<Rc<RefCell<Object>>>>;
+use term::color::{Background, Color, Foreground};
+
+type Grid = SparseSet<RenderUnit>;
 type DynRefList = Vec<Weak<RefCell<Object>>>;
+
+////////////////////////////
+// Main Loop For Renderer //
+////////////////////////////
 
 pub fn render_thread(
     ctx: Context,
     mut canvas: Canvas,
-    rx: mpsc::Receiver<Msg>,
+    rx: mpsc::Receiver<RenderSignal>,
     event_tx: mpsc::Sender<Event>,
 ) {
-    let mut object_grid: Grid = Vec::with_capacity(canvas.area());
-    let mut dynamics_list: DynRefList = Vec::with_capacity(canvas.area());
-    let mut foreground: Foreground = Foreground::new(Color::None);
-    let mut background: Background = Background::new(Color::None);
+
+    let mut bg_counter: usize = 0;
+    let mut mg_counter: usize = 0;
+    let mut fg_counter: usize = 0;
+    let mut free_bg: Vec<usize> = Vec::new();
+    let mut free_mg: Vec<usize> = Vec::new();
+    let mut free_fg: Vec<usize> = Vec::new();
+    let mut background: Grid = SparseSet::new(1000);
+    let mut middleground: Grid = SparseSet::new(1000);
+    let mut foreground: Grid = SparseSet::new(1000);
+    let mut dynamics_list: DynRefList = Vec::new();
+    let mut foreground_color: Foreground = Foreground::new(Color::None);
+    let mut background_color: Background = Background::new(Color::None);
     let mut dirty: bool = true;
 
-    object_grid.resize(canvas.area(), None);
 
     // Main Loop
     while ctx.is_alive() {
-        dispatch_messages(
+        check_for_signals(
+            &mut foreground,
+            &mut middleground,
+            &mut background,
+            &mut dynamics_list,
+            &mut fg_counter,
+            &mut mg_counter,
+            &mut bg_counter,
+            &mut free_fg,
+            &mut free_mg,
+            &mut free_bg,
             &rx,
             &event_tx,
             &mut dirty,
             &mut canvas,
-            &mut foreground,
-            &mut background,
-            &mut object_grid,
-            &mut dynamics_list,
+            &mut foreground_color,
+            &mut background_color,
         );
         clear_invalid_weak_refs(&mut dynamics_list, &mut dirty);
         update_dynamic_objects(&mut dynamics_list, &mut dirty);
-        print(
-            &object_grid,
-            &canvas,
-            &foreground,
-            &background,
-            &mut dirty,
-        );
+        print(&background, &middleground, &foreground, &canvas, &foreground_color, &background_color, &mut dirty);
     }
 }
 
-fn dispatch_messages(
-    rx: &mpsc::Receiver<Msg>,
+fn check_for_signals(
+    fg: &mut Grid,
+    mg: &mut Grid,
+    bg: &mut Grid,
+    dyn_list: &mut DynRefList,
+    fg_counter: &mut usize,
+    mg_counter: &mut usize,
+    bg_counter: &mut usize,
+    free_fg: &mut Vec<usize>,
+    free_mg: &mut Vec<usize>,
+    free_bg: &mut Vec<usize>,
+    rx: &mpsc::Receiver<RenderSignal>,
     event_tx: &mpsc::Sender<Event>,
     dirty: &mut bool,
     canvas: &mut Canvas,
-    foreground: &mut Foreground,
-    background: &mut Background,
-    object_grid: &mut Grid,
-    dynamics_list: &mut DynRefList,
+    fg_color: &mut Foreground,
+    bg_color: &mut Background,
 ) {
     for msg in rx.try_iter() {
         *dirty = true;
-        process_each_msg(
-            msg,
+        dispatch_msg(
+            msg, 
+            fg, mg, bg,
+            dyn_list,
+            fg_counter, mg_counter, bg_counter,
+            free_fg, free_mg, free_bg,
             event_tx,
             canvas,
-            foreground,
-            background,
-            object_grid,
-            dynamics_list,
+            fg_color, bg_color,
         );
     }
 }
-fn process_each_msg(
-    msg: Msg,
+fn dispatch_msg(
+    msg: RenderSignal,
+    fg: &mut Grid,
+    mg: &mut Grid,
+    bg: &mut Grid,
+    dyn_list: &mut DynRefList,
+    fg_counter: &mut usize,
+    mg_counter: &mut usize,
+    bg_counter: &mut usize,
+    free_fg: &mut Vec<usize>,
+    free_mg: &mut Vec<usize>,
+    free_bg: &mut Vec<usize>,
     event_tx: &mpsc::Sender<Event>,
     canvas: &mut Canvas,
-    foreground: &mut Foreground,
-    background: &mut Background,
-    object_grid: &mut Grid,
-    dynamics_list: &mut DynRefList,
+    fg_color: &mut Foreground,
+    bg_color: &mut Background,
 ) {
     match msg {
-        Msg::Batch(batch) => batch_msg(
-            batch,
-            event_tx,
-            canvas,
-            foreground,
-            background,
-            object_grid,
-            dynamics_list,
-        ),
-        Msg::TermSizeChange(c, r) => term_size_change_msg(c, r, canvas, object_grid, event_tx),
-        Msg::Insert(pos, obj) => insert_msg(pos, obj, canvas, object_grid, dynamics_list),
-        Msg::Background(bg) => change_bg(bg, background),
-        Msg::Foreground(fg) => change_fg(fg, foreground),
-        Msg::InsertRange { start, end, object } => {
-            insert_range_msg(start, end, object, canvas, object_grid, dynamics_list)
-        }
-        Msg::InsertText { pos, text, .. } => insert_text_msg(pos, text, canvas, object_grid),
-        Msg::Remove(pos) => remove_msg(pos, object_grid, canvas),
-        Msg::RemoveRange(start, end) => remove_range_msg(start, end, object_grid, canvas),
-        Msg::Swap(a, b) => swap_msg(a, b, canvas, object_grid),
-        Msg::Clear => clear_msg(object_grid, dynamics_list),
+        RenderSignal::Batch(mut batch) => batch_msg(&mut batch, fg, mg, bg, dyn_list, fg_counter, mg_counter, bg_counter,free_fg, free_mg, free_bg, event_tx, canvas, fg_color, bg_color),
+        RenderSignal::Sequence(mut seq) => Sequence_msg(&mut seq, fg, mg, bg, dyn_list, fg_counter, mg_counter, bg_counter, free_fg, free_mg, free_bg, event_tx, canvas, fg_color, bg_color),
+        RenderSignal::TermSizeChange(c, r) => term_size_change_msg(c, r, canvas, event_tx),
+        RenderSignal::Insert(id_holder, new_obj) => insert(id_holder, new_obj, fg_counter, mg_counter, bg_counter, free_fg, free_mg, free_bg, fg, mg, bg, dyn_list),
+        RenderSignal::Background(bg) => change_bg(bg, bg_color),
+        RenderSignal::Foreground(fg) => change_fg(fg, fg_color),
+        RenderSignal::Remove(key) => match key { RenderUnitId::Background(_) => remove(key, bg), RenderUnitId::Middleground(_) => remove(key, mg), RenderUnitId::Foreground(_) => remove(key, fg)},
+        RenderSignal::Clear => clear_msg(fg, mg, bg, dyn_list),
+        RenderSignal::Redraw => {}, // Used to mark display as dirty
+        RenderSignal::Move(id, pos) => move_object(id, pos, fg, mg, bg),
+        RenderSignal::MoveLayer(id, layer) => move_layer(id, layer, fg, mg, bg),
     }
 }
 
+// ! TODO: Need to add camera object to the renderer so that I can make sure that all the things are where they need to be
 fn print(
-    object_grid: &Grid,
+    bg: &Grid,
+    mg: &Grid,
+    fg: &Grid,
     canvas: &Canvas,
-    foreground: &Foreground,
-    background: &Background,
+    fg_color: &Foreground,
+    bg_color: &Background,
     dirty: &mut bool,
 ) {
     if !*dirty {
         return;
     }
 
-    let default_color: String = foreground.to_ansi() + &background.to_ansi();
+    let default_color: String = fg_color.to_ansi() + &bg_color.to_ansi();
 
     #[cfg(not(test))]
     let mut output = String::from(CURSOR_HOME) + CLEAR_COLORS;
@@ -140,36 +170,89 @@ fn print(
             output.push_str(end);
         } else {
             output.push_str(default_color.as_str());
-                output.push(' ');
-                output.push_str(end);
+            output.push(' ');
+            output.push_str(end);
         }
     }
     print!("{}", output);
     *dirty = false;
 }
 
-
 //////////////////////
 // Helper Functions //
 //////////////////////
 fn batch_msg(
-    messages: Vec<Msg>,
+    messages: &mut Vec<RenderSignal>,
+    fg: &mut Grid,
+    mg: &mut Grid,
+    bg: &mut Grid,
+    dyn_list: &mut DynRefList,
+    fg_counter: &mut usize,
+    mg_counter: &mut usize,
+    bg_counter: &mut usize,
+    free_fg: &mut Vec<usize>,
+    free_mg: &mut Vec<usize>,
+    free_bg: &mut Vec<usize>,
     event_tx: &mpsc::Sender<Event>,
     canvas: &mut Canvas,
-    foreground: &mut Foreground,
-    background: &mut Background,
-    object_grid: &mut Grid,
-    dynamics_list: &mut DynRefList,
+    fg_color: &mut Foreground,
+    bg_color: &mut Background,
 ) {
-    for msg in messages {
-        process_each_msg(
-            msg,
+    while messages.len() > 0 {
+        dispatch_msg(
+            messages.swap_remove(0),
+            fg,
+            mg,
+            bg,
+            dyn_list,
+            fg_counter,
+            mg_counter,
+            bg_counter,
+            free_fg,
+            free_mg,
+            free_bg,
             event_tx,
             canvas,
-            foreground,
-            background,
-            object_grid,
-            dynamics_list,
+            fg_color,
+            bg_color,
+        );
+    }
+}
+
+fn Sequence_msg(
+    messages: &mut Vec<RenderSignal>,
+    fg: &mut Grid,
+    mg: &mut Grid,
+    bg: &mut Grid,
+    dyn_list: &mut DynRefList,
+    fg_counter: &mut usize,
+    mg_counter: &mut usize,
+    bg_counter: &mut usize,
+    free_fg: &mut Vec<usize>,
+    free_mg: &mut Vec<usize>,
+    free_bg: &mut Vec<usize>,
+    event_tx: &mpsc::Sender<Event>,
+    canvas: &mut Canvas,
+    fg_color: &mut Foreground,
+    bg_color: &mut Background,
+) {
+    while messages.len() > 0 {
+        dispatch_msg(
+            messages.remove(0),
+            fg,
+            mg,
+            bg,
+            dyn_list,
+            fg_counter,
+            mg_counter,
+            bg_counter,
+            free_fg,
+            free_mg,
+            free_bg,
+            event_tx,
+            canvas,
+            fg_color,
+            bg_color,
         );
     }
 }
@@ -186,12 +269,10 @@ fn term_size_change_msg(
     cols: u32,
     rows: u32,
     canvas: &mut Canvas,
-    object_grid: &mut Grid,
     event_tx: &mpsc::Sender<Event>,
 ) {
     canvas.width = cols as usize;
     canvas.height = rows as usize;
-    object_grid.resize((cols * rows) as usize, None);
     if let Err(_e) = event_tx.send(Event::Other(OtherEvent::ScreenSizeChange {
         width: canvas.width as u32,
         height: canvas.height as u32,
@@ -200,121 +281,61 @@ fn term_size_change_msg(
     }
 }
 
-fn insert_msg(
-    pos: Position<usize>,
-    object: Object,
-    canvas: &Canvas,
-    object_grid: &mut Grid,
-    dynamics_list: &mut DynRefList,
+fn insert(
+    id_holder: Arc<RenderUnitId>,
+    new_object: Object,
+    fg_counter: &mut usize,
+    mg_counter: &mut usize,
+    bg_counter: &mut usize,
+    free_fg: &mut Vec<usize>,
+    free_mg: &mut Vec<usize>,
+    free_bg: &mut Vec<usize>,
+    fg: &mut Grid,
+    mg: &mut Grid,
+    bg: &mut Grid,
+    dyn_list: &mut DynRefList
 ) {
-    match object {
-        Object::Static { .. } => {
-            object_grid[pos.y * canvas.width + pos.x] = Some(Rc::new(RefCell::new(object)))
+
+    let static_process = |set: &mut SparseSet<RenderUnit>, id_counter: &mut usize, free_ids: &mut Vec<usize>, id_holder: Arc<RenderUnitId>, object: Object|{
+        let new_unit: RenderUnit = RenderUnit { id:id_holder, object: Rc::new(RefCell::new(object)) };
+        new_unit.id.store(if free_ids.len() > 0 {free_ids.swap_remove(0)} else {*id_counter += 1; *id_counter -1});
+        set.insert(new_unit.id.load().0, new_unit);
+    };
+    let dynamic_process = |dyn_list: &mut DynRefList, set: &mut SparseSet<RenderUnit>, id_counter: &mut usize, free_ids: &mut Vec<usize>, id_holder: Arc<RenderUnitId>, object: Object| {
+        let new_unit: RenderUnit = RenderUnit { id: id_holder, object: Rc::new(RefCell::new(object)) };
+        new_unit.id.store(if free_ids.len() > 0 {free_ids.swap_remove(0)} else {*id_counter += 1; *id_counter -1});
+    dyn_list.push(Rc::downgrade(&new_unit.object));
+    set.insert(new_unit.id.load().0, new_unit);
+    };
+        
+    match new_object {
+        Object::Static(_) =>{
+            match new_object.layer() {
+                Layer::Background => static_process(bg, bg_counter, free_bg, id_holder, new_object),
+                Layer::Middleground => static_process(mg, mg_counter, free_mg, id_holder, new_object),
+                Layer::Foreground => static_process(fg, fg_counter, free_fg, id_holder, new_object),
+            }
         }
-        Object::Dynamic { .. } => {
-            let val = Rc::new(RefCell::new(object));
-            dynamics_list.push(Rc::downgrade(&val));
-            object_grid[pos.y * canvas.width + pos.x] = Some(val);
+        Object::Dynamic(_) => {
+            match new_object.layer() {
+                Layer::Background => dynamic_process(dyn_list, bg, bg_counter, free_bg, id_holder, new_object),
+                Layer::Middleground => dynamic_process(dyn_list, mg, mg_counter, free_mg, id_holder, new_object),
+                Layer::Foreground => dynamic_process(dyn_list, fg, fg_counter, free_fg, id_holder, new_object),
+            }
         }
     }
 }
 
-fn insert_range_msg(
-    start: Position<usize>,
-    end: Position<usize>,
-    object: Object,
-    canvas: &Canvas,
-    object_grid: &mut Grid,
-    dynamics_list: &mut DynRefList,
-) {
-    let process: fn(
-        object: Object,
-        offset: usize,
-        x: usize,
-        y: usize,
-        canvas: &Canvas,
-        grid: &mut Grid,
-        dyn_list: &mut DynRefList,
-    );
-    match object {
-        Object::Static { .. } => {
-            process = |object: Object,
-                       offset: usize,
-                       x: usize,
-                       y: usize,
-                       canvas: &Canvas,
-                       grid: &mut Grid,
-                       _dyn_list: &mut DynRefList| {
-                grid[offset + (y * canvas.width + x)] = Some(Rc::new(RefCell::new(object.clone())));
-            };
-        }
-        Object::Dynamic { .. } => {
-            process = |object: Object, offset, x, y, canvas, grid, dyn_list| {
-                let val = Rc::new(RefCell::new(object.clone()));
-                dyn_list.push(Rc::downgrade(&val));
-                grid[offset + (y * canvas.width + x)] = Some(val);
-            };
-        }
-    }
-    for y in 0..(start.y as i32 - end.y as i32).abs() {
-        for x in 0..(start.x as i32 - end.x as i32).abs() {
-            process(
-                object.clone(),
-                start.y * canvas.width + start.x,
-                x as usize,
-                y as usize,
-                canvas,
-                object_grid,
-                dynamics_list,
-            );
-        }
-    }
+
+
+fn remove(key: RenderUnitId, list: &mut Grid) {
+    list.remove(key.load().0);
 }
 
-fn insert_text_msg(pos: Position<usize>, text: String, canvas: &Canvas, object_grid: &mut Grid) {
-    let mut y: usize = pos.y;
-    let mut x: usize = pos.x;
-    for each in text.chars() {
-        if each == ' ' || each == '\n' {
-            object_grid[y * canvas.width + x] = None;
-        } else {
-            object_grid[y * canvas.width + x] =
-                Some(Rc::new(RefCell::new(Object::new_static(each, None, None))));
-        }
-        if each == '\n' {
-            y += 1;
-            x = pos.x
-        } else {
-            x += 1;
-        }
-    }
-}
-
-fn remove_msg(pos: Position<usize>, object_grid: &mut Grid, canvas: &Canvas) {
-    object_grid[pos.y * canvas.width + pos.x] = None;
-}
-
-fn remove_range_msg(
-    start: Position<usize>,
-    end: Position<usize>,
-    object_grid: &mut Grid,
-    canvas: &Canvas,
-) {
-    for y in 0..(start.y as i32 - end.y as i32).abs() {
-        for x in 0..(start.x as i32 - end.x as i32).abs() {
-            object_grid
-                [(start.y * canvas.width + start.x) + (y as usize * canvas.width + x as usize)] =
-                None;
-        }
-    }
-}
-
-fn swap_msg(a: Position<usize>, b: Position<usize>, canvas: &Canvas, object_grid: &mut Grid) {
-    object_grid.swap(a.y * canvas.width + a.x, b.y * canvas.width + b.x);
-}
-
-fn clear_msg(object_grid: &mut Grid, dynamics_list: &mut DynRefList) {
-    object_grid.fill(None);
+fn clear_msg(fg: &mut Grid, mg : &mut Grid, bg: &mut Grid, dynamics_list: &mut DynRefList) {
+    fg.clear();
+    mg.clear();
+    bg.clear();
     dynamics_list.clear();
 }
 
@@ -328,14 +349,72 @@ fn clear_invalid_weak_refs(dynamics_list: &mut DynRefList, dirty: &mut bool) {
 
 fn update_dynamic_objects(dynamics_list: &mut DynRefList, dirty: &mut bool) {
     for each in dynamics_list.iter() {
-        let each = each.upgrade().unwrap();
-        let mut each = each.borrow_mut();
+        let mut each = each.upgrade().unwrap();
+        each.
         if each.update() {
             *dirty = true;
         }
     }
 }
 
+fn move_object(id: RenderUnitId, pos: Position3D<i32>, fg: &mut Grid, mg: &mut Grid, bg: &mut Grid) {
+    let (id, layer) = id.load();
+    match layer {
+        Layer::Background => bg.get(id).unwrap(),
+        Layer::Middleground => mg.get(id).unwrap(),
+        Layer::Foreground => fg.get(id).unwrap(),
+    }.object.borrow_mut().shift(pos);
+}
+
+fn move_layer(id: RenderUnitId, layer: Layer, fg: &mut Grid, mg: &mut Grid, bg: &mut Grid) {
+    let (id, current_layer) = id.load();
+    let mut id = id;
+    let mut changed = false;
+    let val = match current_layer {
+        Layer::Background => bg.remove(id).unwrap(),
+        Layer::Middleground => mg.remove(id).unwrap(),
+        Layer::Foreground => fg.remove(id).unwrap()
+    };
+
+    match layer {
+        Layer::Background => {
+            while bg.is_filled(id) {
+                id += 1;
+                if !changed {
+                    changed = true;
+                }
+            }
+            if changed {
+                val.id.store(id);
+            }
+            bg.insert(id, val);
+        }
+        Layer::Middleground => {
+            while mg.is_filled(id) {
+                id += 1;
+                if !changed {
+                    changed = true;
+                }
+            }
+            if changed {
+                val.id.store(id);
+            }
+            mg.insert(id, val);
+        }
+        Layer::Foreground => {
+            while fg.is_filled(id) {
+                id += 1;
+                if !changed {
+                    changed = true;
+                }
+            }
+            if changed {
+                val.id.store(id);
+            }
+            fg.insert(id, val)
+        }
+    }
+}
 
 #[cfg(test)]
 mod test {
@@ -373,15 +452,23 @@ mod test {
         let mut grid: Grid = vec![];
         grid.resize(c.width * c.height, None);
 
-        insert_text_msg(Position { x: m.x(), y: m.y() }, match m.output(&c) {
-            Some(out) => out,
-            None => "".to_string()
-        }, &c, &mut grid);
+        insert_text_msg(
+            Position { x: m.x(), y: m.y() },
+            match m.output(&c) {
+                Some(out) => out,
+                None => "".to_string(),
+            },
+            &c,
+            &mut grid,
+        );
 
-        println!("Raw Menu Output:\n{}", match m.output(&c){
-            Some(out) => out,
-            None => "".to_string()
-        });
+        println!(
+            "Raw Menu Output:\n{}",
+            match m.output(&c) {
+                Some(out) => out,
+                None => "".to_string(),
+            }
+        );
         let fg = Foreground::new(Color::None);
         let bg = Background::new(Color::None);
         let mut b = true;
@@ -389,8 +476,12 @@ mod test {
         print(&grid, &c, &fg, &bg, &mut b);
         for (i, ch) in match m.output(&c) {
             Some(out) => out,
-            None => "".to_string()
-        }.replace("\n", "").chars().enumerate() {
+            None => "".to_string(),
+        }
+        .replace("\n", "")
+        .chars()
+        .enumerate()
+        {
             let x: usize = (i % c.width) + 1;
             let y: usize = (i / c.width) + 1;
             let grid_c: char = if let Some(c) = &grid[i] {

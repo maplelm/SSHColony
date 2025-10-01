@@ -1,8 +1,12 @@
-use super::super::super::render::Object;
+use crate::engine::render::RenderUnitId;
+
+use super::super::super::render::{Layer, Object};
 use super::super::Error;
-use super::super::types::Position;
+use super::super::types::Position3D;
 use super::traits::Scene;
+use std::sync::{Arc, atomic::AtomicUsize};
 use term::Terminal;
+use term::color::{Background, Foreground};
 
 pub enum Signal<T: Scene<T>> {
     None,
@@ -21,13 +25,17 @@ pub enum SceneSignal<T: Scene<T>> {
 }
 
 pub enum RenderSignal {
-    Insert(Position<usize>, Object),
-    InsertRange {
-        start: Position<usize>,
-        text: String,
-        foreground: Option<term::color::Foreground>,
-        background: Option<term::color::Background>,
-    },
+    Insert(Arc<RenderUnitId>, Object),
+    Remove(RenderUnitId),
+    Move(RenderUnitId, Position3D<i32>),
+    MoveLayer(RenderUnitId, Layer),
+    TermSizeChange(u32, u32),
+    Foreground(Foreground),
+    Background(Background),
+    Redraw,
+    Clear,
+    Batch(Vec<RenderSignal>),
+    Sequence(Vec<RenderSignal>),
 }
 
 ////////////////
@@ -47,4 +55,3 @@ macro_rules! new_scene {
         Signal::Scenes(SceneSignal::New($name))
     };
 }
-

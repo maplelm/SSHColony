@@ -4,22 +4,22 @@ use crate::engine::{
     types as enginetypes,
     ui::style::{Justify, Measure},
 };
-use crate::engine::{types::Position, ui::Border};
+use crate::engine::{types::Position3D, ui::Border};
 use std::{
     fmt::Display,
-    sync::mpsc,
+    sync::{mpsc, atomic::AtomicUsize},
     time::{Duration, Instant},
 };
 use term::color::{Background, Foreground};
 
 #[derive(Clone, Debug)]
-enum Static {
+pub enum Static {
     Sprite(StaticSprite),
     Text(StaticText),
 }
 
 #[derive(Clone, Debug)]
-enum Dynamic {
+pub enum Dynamic {
     Sprite(DynamicSprite),
     Text(DynamicText),
 }
@@ -31,19 +31,7 @@ pub enum Object {
 }
 
 impl Object {
-    pub fn id(&self) -> u32 {
-        match self {
-            Self::Static(s) => match s {
-                Static::Sprite(s) => s.id,
-                Static::Text(t) => t.id,
-            },
-            Self::Dynamic(d) => match d {
-                Dynamic::Sprite(s) => s.id,
-                Dynamic::Text(t) => t.id,
-            },
-        }
-    }
-    pub fn pos(&self) -> Position<i32> {
+    pub fn pos(&self) -> Position3D<i32> {
         match self {
             Self::Static(s) => match s {
                 Static::Sprite(s) => s.pos,
@@ -53,6 +41,43 @@ impl Object {
                 Dynamic::Sprite(s) => s.pos,
                 Dynamic::Text(t) => t.pos,
             },
+        }
+    }
+
+    pub fn shift(&mut self, pos: Position3D<i32>) {
+        match self {
+            Self::Static(s) => match s {
+                Static::Sprite(s) => {
+                    s.pos.x += pos.x;
+                    s.pos.y += pos.y;
+                    s.pos.z += pos.z;
+                }
+                Static::Text(t) => {
+                    t.pos.x += pos.x;
+                    t.pos.y += pos.y;
+                    t.pos.z += pos.z;
+                }
+            },
+            Self::Dynamic(d) => match d {
+                Dynamic::Sprite(s) => {
+                    s.pos.x += pos.x;
+                    s.pos.y += pos.y;
+                    s.pos.z += pos.z;
+                }
+            }
+        }
+    }
+
+    pub fn layer(&self) -> &Layer {
+        match self {
+            Self::Static(s) => match s {
+                Static::Sprite(s) => &s.layer,
+                Static::Text(t) => &t.layer,
+            }
+            Self::Dynamic(d) => match d {
+                Dynamic::Sprite(s) => &s.layer,
+                Dynamic::Text(t) => &t.layer
+            }
         }
     }
 
@@ -70,7 +95,7 @@ impl Object {
     }
 
     pub fn as_static_sprite(
-        pos: Position<i32>,
+        pos: Position3D<i32>,
         sym: char,
         layer: Layer,
         fg: Option<Foreground>,
@@ -78,18 +103,19 @@ impl Object {
     ) -> Self {
         Self::Static(Static::Sprite(StaticSprite {
             pos: pos,
+            layer: layer,
             base: SpriteBase {
                 symbol: sym,
-                layer: layer,
                 fg: fg,
                 bg: bg,
             },
         }))
     }
 
-    pub fn as_dyn_sprite(pos: Position<i32>, tick: Duration, sheet: Vec<SpriteBase>) -> Self {
+    pub fn as_dyn_sprite(pos: Position3D<i32>, layer: Layer, tick: Duration, sheet: Vec<SpriteBase>) -> Self {
         Self::Dynamic(Dynamic::Sprite(DynamicSprite {
             pos: pos,
+            layer: layer,
             sprite_sheet: sheet,
             tick: tick,
             cursor: 0,
@@ -98,7 +124,7 @@ impl Object {
     }
 
     pub fn as_static_text(
-        pos: Position<i32>,
+        pos: Position3D<i32>,
         text: String,
         layer: Layer,
         justify: Justify,
@@ -110,9 +136,9 @@ impl Object {
     ) -> Self {
         Self::Static(Static::Text(StaticText {
             pos: pos,
+            layer: layer,
             base: TextBase {
                 text: text,
-                layer: layer,
                 justify: justify,
                 width: width,
                 height: height,
@@ -123,9 +149,10 @@ impl Object {
         }))
     }
 
-    pub fn as_dyn_text(pos: Position<i32>, sheet: Vec<TextBase>, tick: Duration) -> Self {
+    pub fn as_dyn_text(pos: Position3D<i32>, layer: Layer, sheet: Vec<TextBase>, tick: Duration) -> Self {
         Self::Dynamic(Dynamic::Text(DynamicText {
             pos: pos,
+            layer: layer,
             text_sheet: sheet,
             tick: tick,
             cursor: 0,
@@ -135,8 +162,15 @@ impl Object {
 
     pub fn is_dynamic(&self) -> bool {
         match self {
-            Object::Static(_) => false,
-            Object::Dynamic(_) => true,
+            Self::Dynamic(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_static(&self) -> bool {
+        match self {
+            Self::Static(_) => true,
+            _ => false
         }
     }
 
@@ -151,16 +185,6 @@ impl Object {
     }
 }
 
-pub enum Msg {
-    Insert(Object),
-    Background(Background),
-    Foreground(Foreground),
-    Remove(enginetypes::Position<usize>),
-    Swap(enginetypes::Position<usize>, enginetypes::Position<usize>),
-    Batch(Vec<Msg>),
-    TermSizeChange(u32, u32),
-    Clear,
-}
 
 #[derive(
     Clone, Hash, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
@@ -171,3 +195,65 @@ pub enum Layer {
     Foreground,
 }
 
+pub enum RenderUnitId {
+    Background(AtomicUsize),
+    Middleground(AtomicUsize),
+    Foreground(AtomicUsize)
+}
+
+impl RenderUnitId {
+    pub fn from_usize(val: usize, layer: Layer) -> Self {
+        let val = AtomicUsize::new(val);
+        match layer {
+            Layer::Background => RenderUnitId::Background(val),
+            Layer::Middleground => RenderUnitId::Middleground(val),
+            Layer::Foreground => RenderUnitId::Foreground(val)
+        }
+    }
+
+    pub fn from_atomic(val: AtomicUsize, layer: Layer) -> Self {
+        match layer {
+            Layer::Background => RenderUnitId::Background(val),
+            Layer::Middleground => RenderUnitId::Middleground(val),
+            Layer::Foreground => RenderUnitId::Foreground(val)
+        }
+    }
+
+    pub fn is_bg(&self) -> bool {
+        match self {
+            RenderUnitId::Background(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_mg(&self) -> bool {
+        match self {
+            RenderUnitId::Middleground(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_fg(&self) -> bool {
+        match self {
+            RenderUnitId::Foreground(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn load(&self) -> (usize, Layer) {
+        match self {
+            Self::Background(val) => (val.load(std::sync::atomic::Ordering::SeqCst), Layer::Background),
+            Self::Middleground(val) => (val.load(std::sync::atomic::Ordering::SeqCst), Layer::Middleground),
+            Self::Foreground(val) => (val.load(std::sync::atomic::Ordering::SeqCst), Layer::Foreground),
+        }
+    }
+
+    pub fn store(&self, val: usize) {
+        match self {
+            Self::Background(aval) => aval.store(val, std::sync::atomic::Ordering::SeqCst),
+            Self::Middleground(aval) => aval.store(val, std::sync::atomic::Ordering::SeqCst),
+            Self::Foreground(aval) => aval.store(val, std::sync::atomic::Ordering::SeqCst),
+        }
+    }
+
+}

@@ -4,12 +4,16 @@ use super::material::Material;
 use super::tile::{self, Tile};
 use crate::engine::Error;
 use crate::engine::{
-    self, render::{self, Object},
-    types::{Position3D, Store, File},
+    self,
+    render::{self, Object},
+    types::{File, Position3D, SparseSet, Store},
 };
 use serde;
 use std::io::Read;
 use std::{fs, io::Write};
+
+pub const MAX_MATERIALS: usize = 10000; //10K
+pub const MAX_ENTITIES: usize = 10000000; // 10M
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct WorldSave {
@@ -18,14 +22,23 @@ pub struct WorldSave {
     pub avg_height: f32,
     pub sea_level: f32,
     pub world_size: Position3D<usize>,
-    pub materials: Vec<Material>,
-    pub entities: Vec<Entity>,
+    pub materials: SparseSet<Material>,
+    pub entities: SparseSet<Entity>,
     pub tiles: Vec<Tile>,
 }
 
 impl WorldSave {
     pub fn from_world(w: &World) -> WorldSave {
-        Self { name: w.name.clone(), avg_temp: w.avg_temp, avg_height: w.avg_height, sea_level: w.sea_level, world_size: w.world_size, materials: w.materials.clone(), entities: w.entities.clone(), tiles: w.tiles.clone() }
+        Self {
+            name: w.name.clone(),
+            avg_temp: w.avg_temp,
+            avg_height: w.avg_height,
+            sea_level: w.sea_level,
+            world_size: w.world_size,
+            materials: w.materials.clone(),
+            entities: w.entities.clone(),
+            tiles: w.tiles.clone(),
+        }
     }
 }
 
@@ -36,36 +49,26 @@ pub struct World {
     pub avg_height: f32,
     pub sea_level: f32,
     pub world_size: Position3D<usize>,
-    #[serde(default="world_init_materials")]
+    #[serde(default = "world_init_materials")]
     pub material_templates: Store<Material>,
-    #[serde(default="world_init_entitytemplate")]
+    #[serde(default = "world_init_entitytemplate")]
     pub entity_templates: Store<EntityTemplate>,
-    #[serde(default="world_init_sprites")]
-    pub sprite_templates: Store<render::Object>,
-    pub materials: Vec<Material>,
-    pub entities: Vec<Entity>,
-    pub tiles: Vec<Tile>,
-}
-
-fn world_init_sprites() -> Store<render::Object> {
-    match Store::from_dir("./data/sprites/") {
-        Err(e) => panic!("world_init_sprites: {e}"),
-        Ok(s) => s,
-    }
-   // panic!("failed to load entities from ./data/sprites/")
+    pub materials: SparseSet<Material>,
+    pub entities: SparseSet<Entity>,
+    pub tiles: SparseSet<Tile>,
 }
 
 fn world_init_entitytemplate() -> Store<EntityTemplate> {
     match Store::from_dir("./data/entities/") {
         Err(e) => panic!("world_init_entitytemplate: {e}"),
-        Ok(s) => s
+        Ok(s) => s,
     }
 }
 
 fn world_init_materials() -> Store<Material> {
     match Store::from_dir("./data/materials/") {
         Err(e) => panic!("world_init_materials {e}"),
-        Ok(s) => s
+        Ok(s) => s,
     }
 }
 
@@ -139,13 +142,13 @@ impl World {
     pub fn save(&self) -> Result<(), std::io::Error> {
         let loc = String::from("./saves/") + self.name.as_str() + ".world";
         let save_data = WorldSave::from_world(self);
-        match File::open(&loc, false){
-                Ok(mut f) => {
-                    bincode::serde::encode_into_writer(save_data, f , bincode::config::standard());
-                    Ok(())
-                }
-                Err(e) => Err(e)
+        match File::open(&loc, false) {
+            Ok(mut f) => {
+                bincode::serde::encode_into_writer(save_data, f, bincode::config::standard());
+                Ok(())
             }
+            Err(e) => Err(e),
+        }
     }
 
     pub fn index_to_pos(&self, mut index: usize) -> Position3D<usize> {
@@ -155,5 +158,5 @@ impl World {
         let x = index % self.world_size.x;
         Position3D::new(x, y, z)
     }
-
 }
+

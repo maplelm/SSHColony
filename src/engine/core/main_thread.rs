@@ -1,12 +1,11 @@
-use crate::engine::{core::consts::DEFAULT_CANVAS, enums::SceneSignal};
-
-use super::super::{
-    AudioMsg, Context, Error,
-    input::Event,
-    render::{Canvas, Msg},
+use crate::engine::{
+    consts::DEFAULT_CANVAS,
+    enums::{RenderSignal, SceneSignal},
 };
+
+use super::super::{AudioMsg, Context, Error, input::Event, render::Canvas, types::Instance};
 use super::{
-    audio_thread::audio_thread, enums::Signal, event_thread::event_thread, instance::Instance,
+    audio_thread::audio_thread, enums::Signal, event_thread::event_thread,
     render_thread::render_thread, traits::Scene,
 };
 use std::thread::{JoinHandle, spawn};
@@ -52,7 +51,7 @@ pub fn start<T: Scene<T>>(mut ins: Instance<T>) -> Result<(), Error> {
 
 fn main_loop<T: Scene<T>>(
     mut ins: Instance<T>,
-    render_tx: mpsc::Sender<Msg>,
+    render_tx: mpsc::Sender<RenderSignal>,
     event_rx: mpsc::Receiver<Event>,
 ) -> Result<(), Error> {
     let mut end_frame: Instant = Instant::now();
@@ -78,36 +77,40 @@ fn main_loop<T: Scene<T>>(
 fn dispatch<T: Scene<T>>(
     mut ins: Instance<T>,
     sig: Signal<T>,
-    render_tx: &mpsc::Sender<Msg>,
+    render_tx: &mpsc::Sender<RenderSignal>,
 ) -> Result<Instance<T>, Error> {
     match sig {
         Signal::None => {}
         Signal::Quit => ins.ctx.cancel(),
-        Signal::Scenes(ss) => {
-            match ss {
-                SceneSignal::New(mut ns) => {
-                    if ins.game_state.len() > 0 {
-                        let index = ins.game_state.len() - 1;
-                        ins.game_state.get_mut(index).unwrap().suspend(render_tx);
-                    }
-                    let sig = ns.init(render_tx, &ins.canvas);
-                    match dispatch(ins, sig, render_tx) {
-                        Ok(i) => ins = i,
-                        Err(e) => return Err(e),
-                    }
-                    ins.add_scene(ns);
-
-                        }
-                SceneSignal::Pop => {
-                    ins.game_state.pop();
+        Signal::Scenes(ss) => match ss {
+            SceneSignal::New(mut ns) => {
+                if ins.game_state.len() > 0 {
                     let index = ins.game_state.len() - 1;
-                    ins.game_state
-                        .get_mut(index)
-                        .unwrap()
-                        .resume(render_tx, &ins.canvas);
+                    ins.game_state.get_mut(index).unwrap().suspend(render_tx);
                 }
+                let sig = ns.init(render_tx, &ins.canvas);
+                match dispatch(ins, sig, render_tx) {
+                    Ok(i) => ins = i,
+                    Err(e) => return Err(e),
+                }
+                ins.add_scene(ns);
             }
-        }
+            SceneSignal::Pop => {
+                ins.game_state.pop();
+                let index = ins.game_state.len() - 1;
+                ins.game_state
+                    .get_mut(index)
+                    .unwrap()
+                    .resume(render_tx, &ins.canvas);
+            }
+        },
+        Signal::Render(msg) => match render_tx.send(msg) {
+            Ok(_) => {}
+            Err(e) => match dispatch(ins, Signal::Log(e.to_string()), render_tx) {
+                Ok(i) => ins = i,
+                Err(e) => return Err(e),
+            },
+        },
         Signal::Batch(mut v) => {
             while v.len() > 0 {
                 match dispatch(ins, v.swap_remove(0), render_tx) {
@@ -157,7 +160,7 @@ fn start_render_thread(
     root_ctx: &Context,
     canvas: Canvas,
     event_tx: mpsc::Sender<Event>,
-) -> (mpsc::Sender<Msg>, JoinHandle<()>) {
+) -> (mpsc::Sender<RenderSignal>, JoinHandle<()>) {
     let (tx, rx) = mpsc::channel();
     let child = root_ctx.child();
     let canvas_move = canvas.clone();

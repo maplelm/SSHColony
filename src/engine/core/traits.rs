@@ -1,7 +1,6 @@
-use super::super::{
-    input::Event,
-    render::{Canvas, Msg},
-};
+use crate::engine::enums::RenderSignal;
+
+use super::super::{input::Event, render::Canvas};
 use super::enums::Signal;
 use std::hash::Hash;
 use std::ops::{Add, Div, Mul, Sub};
@@ -11,13 +10,13 @@ pub trait Scene<T: Scene<T>> {
         &mut self,
         delta_time: f32,
         event_rx: &mpsc::Receiver<Event>,
-        render_tx: &mpsc::Sender<Msg>,
+        render_tx: &mpsc::Sender<RenderSignal>,
         canvas: &Canvas,
     ) -> Signal<T>;
-    fn init(&mut self, render_tx: &mpsc::Sender<Msg>, canvas: &Canvas) -> Signal<T>;
+    fn init(&mut self, render_tx: &mpsc::Sender<RenderSignal>, canvas: &Canvas) -> Signal<T>;
     fn is_init(&self) -> bool;
-    fn suspend(&mut self, render_tx: &mpsc::Sender<Msg>);
-    fn resume(&mut self, render_tx: &mpsc::Sender<Msg>, canvas: &Canvas);
+    fn suspend(&mut self, render_tx: &mpsc::Sender<RenderSignal>);
+    fn resume(&mut self, render_tx: &mpsc::Sender<RenderSignal>, canvas: &Canvas);
     fn is_paused(&self) -> bool;
     fn reset(&mut self);
 }
@@ -50,4 +49,3 @@ pub trait Storeable: for<'de> serde::Deserialize<'de> + serde::Serialize {
     type Key: serde::Serialize + for<'de> serde::Deserialize<'de> + Eq + Hash + Clone;
     fn key(&self) -> Self::Key;
 }
-

@@ -1,8 +1,7 @@
-use super::consts::DEFAULT_CANVAS;
-
-use super::super::{Context, render::Canvas};
-use super::traits::Scene;
+use super::super::core::traits::Scene;
+use super::super::{Context, consts::DEFAULT_CANVAS, render::Canvas};
 use term::{Terminal, term_size};
+
 pub struct Instance<T: Scene<T>> {
     pub ctx: Context,
     pub term_orig: Terminal,

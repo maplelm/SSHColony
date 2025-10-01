@@ -22,6 +22,7 @@ enphisis on combat and survival more so then casual building and story telling.
 - [ ] New Object system does not respect width and height all the time right now and doesn't really use the foreground and background at the moment I need to make sure those are built in. not sure of the best way to break that up.
 - [ ] figure out the best way to link up my dependencies that I have locally with the github repo as currenlty anyone else that downloads this projects will be missing key parts of the project.
 - [ ] convert the renderer to work with lists of render objects that have a position stored in them rather then having a grid and try to mimic manually placing things on the screen. this don'ts work well fro ui and I don't see how I can more cleanly link the rest of my program to the renderer
+- [ ] Figure out how to implement absolute position in renderer to make implementing ui elements easier. I don't really want to have to manually move al of the ui evertime I want to camera to move to a different spot in the map.
 
 # Technical Specifications
 

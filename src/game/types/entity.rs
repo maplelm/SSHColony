@@ -1,24 +1,29 @@
-
 use crate::{
     engine::{
-        traits::Storeable,
         render,
+        traits::Storeable,
         types::{Position, Position3D, Store},
     },
     game::types::{Inventory, Stat, StatTemplate},
 };
+use std::sync::{Arc, Weak, atomic::AtomicUsize};
 use std::{cmp::Ordering, collections::HashMap, hash::Hash};
 
-pub type EntityID = u32;
-
+////////////
+// Consts //
+////////////
 const ENTITY_PASSABLE_FLAG: u8 = 0b00000001;
 const ENTITY_STORABLE_FLAG: u8 = 0b00000010;
 
+/////////////
+// Structs //
+/////////////
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Common {
-    pub flags: u8,
+    flags: u8,
+    #[serde(skip, default = "Common::default_render_id")]
+    render_id: Weak<AtomicUsize>,
     pub position: Position3D<usize>,
-    pub visual_position: Option<Position<usize>>,
     pub inventory: Option<Inventory>,
     pub stats: HashMap<String, Stat>,
 }
@@ -26,11 +31,11 @@ pub struct Common {
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Kind {
     Creature {
-        kind: Creatures,
+        kind: CreatureType,
         state: CreatureState,
     },
     Object {
-        kind: Objects,
+        kind: ObjectType,
         state: ObjectState,
     },
 }
@@ -41,9 +46,27 @@ pub struct Entity {
     pub kind: Kind,
 }
 
-impl Entity {
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct Template {
+    pub passable: bool,
+    pub storable: bool,
+    pub name: String,
+    pub max_inventory_weight: Option<u32>,
+    pub base_stats: HashMap<String, StatTemplate>,
+    pub kind: Kind,
+}
 
-    pub fn from_template(temp: EntityTemplate) -> Self {
+////////////////////
+// Implementation //
+////////////////////
+impl Common {
+    fn default_render_id() -> Weak<AtomicUsize> {
+        Weak::new()
+    }
+}
+
+impl Entity {
+    pub fn from_template(temp: Template) -> Self {
         let mut flags = 0;
         if temp.passable {
             flags |= ENTITY_PASSABLE_FLAG;
@@ -58,14 +81,18 @@ impl Entity {
         }
 
         Self {
-            common: Common { 
+            common: Common {
                 flags: flags,
+                render_id: Weak::new(),
                 position: Position3D { x: 0, y: 0, z: 0 },
-                visual_position: None,
-                inventory: if let Some(weight) = temp.max_inventory_weight {Inventory::new(weight)} else {None},
-                stats: stats, 
+                inventory: if let Some(weight) = temp.max_inventory_weight {
+                    Inventory::new(weight)
+                } else {
+                    None
+                },
+                stats: stats,
             },
-            kind: temp.kind
+            kind: temp.kind,
         }
     }
 
@@ -93,8 +120,19 @@ impl Entity {
     }
 }
 
+impl Storeable for Template {
+    type Key = String;
+    fn key(&self) -> Self::Key {
+        self.name.clone()
+    }
+}
+
+///////////
+// Enums //
+///////////
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub enum Creatures {
+pub enum CreatureType {
     Dwarf,
     Human,
 }
@@ -108,7 +146,7 @@ pub enum CreatureState {
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub enum Objects {
+pub enum ObjectType {
     Door,
     Bin,
     Chair,
@@ -120,21 +158,4 @@ pub enum ObjectState {
     Normal,
     Damaged,
     Broken,
-}
-
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct EntityTemplate {
-    pub passable: bool,
-    pub storable: bool,
-    pub name: String,
-    pub max_inventory_weight: Option<u32>,
-    pub base_stats: HashMap<String, StatTemplate>,
-    pub kind: Kind,
-}
-
-impl Storeable for EntityTemplate {
-    type Key = String;
-    fn key(&self) -> Self::Key {
-        self.name.clone()
-    }
 }

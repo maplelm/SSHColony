@@ -1,7 +1,7 @@
 #![deny(unused)]
 
 use super::{Canvas, Layer};
-use crate::engine::types::Position;
+use crate::engine::types::Position3D;
 use crate::engine::ui::style::Justify;
 use crate::engine::ui::{Border, style::Measure};
 use std::fmt::Display;
@@ -14,7 +14,6 @@ use term::color::{Background, Foreground};
 #[derive(Clone, Debug)]
 pub struct SpriteBase {
     pub symbol: char,
-    pub layer: Layer,
     pub fg: Option<Foreground>,
     pub bg: Option<Background>,
 }
@@ -39,8 +38,8 @@ impl SpriteBase {
 
 #[derive(Clone, Debug)]
 pub struct StaticSprite {
-    pub id: u32,
-    pub pos: Position<i32>,
+    pub pos: Position3D<i32>,
+    pub layer: Layer,
     pub base: SpriteBase,
 }
 
@@ -75,8 +74,8 @@ impl StaticSprite {
 
 #[derive(Clone, Debug)]
 pub struct DynamicSprite {
-    pub id: u32,
-    pub pos: Position<i32>,
+    pub pos: Position3D<i32>,
+    pub layer: Layer,
     pub sprite_sheet: Vec<SpriteBase>,
     pub tick: Duration,
     pub cursor: usize,
@@ -84,9 +83,10 @@ pub struct DynamicSprite {
 }
 
 impl DynamicSprite {
-    pub fn new(pos: Position<i32>, ss: Vec<SpriteBase>, tick: Duration) -> Self {
+    pub fn new(pos: Position3D<i32>, layer: Layer, ss: Vec<SpriteBase>, tick: Duration) -> Self {
         Self {
             pos: pos,
+            layer: layer,
             sprite_sheet: ss,
             tick: tick,
             cursor: 0,
@@ -116,7 +116,6 @@ impl DynamicSprite {
 #[derive(Clone, Debug)]
 pub struct TextBase {
     pub text: String,
-    pub layer: Layer,
     pub justify: Justify,
     pub width: Option<Measure>,
     pub height: Option<Measure>,
@@ -331,8 +330,8 @@ impl TextBase {
 
 #[derive(Clone, Debug)]
 pub struct StaticText {
-    pub id: u32,
-    pub pos: Position<i32>,
+    pub pos: Position3D<i32>,
+    pub layer: Layer,
     pub base: TextBase,
 }
 
@@ -347,8 +346,8 @@ impl StaticText {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #[derive(Clone, Debug)]
 pub struct DynamicText {
-    pub id: u32,
-    pub pos: Position<i32>,
+    pub pos: Position3D<i32>,
+    pub layer: Layer,
     pub text_sheet: Vec<TextBase>,
     pub tick: Duration,
     pub cursor: usize,
