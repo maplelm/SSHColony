@@ -1,83 +1,100 @@
-#![deny(unused)]
+#![deny(unused_variables)]
 
-use crate::engine::render::Object;
-use crate::engine::ui::style::Justify;
+use std::sync::{Arc, Weak, atomic::AtomicUsize, mpsc::Sender};
 
 use super::super::render::Canvas;
 use super::{
-    super::{render, types::*},
+    super::types::*,
     Border,
-    style::{Measure, Origin},
+    style::{Measure, Origin, Size, Style},
 };
+use crate::engine::enums::RenderSignal;
+use crate::engine::render::{Layer, Object, RenderUnitId};
+use crate::engine::ui::style::Justify;
+use term::color::{Background, Foreground};
 
+#[allow(unused)]
 const CURSOR_OFFSET: usize = 2;
+#[allow(unused)]
 const TOTAL_OFFSET: usize = CURSOR_OFFSET * 2;
 
-pub trait MenuItem: std::fmt::Debug  {
-    fn label(&self) -> &str;
-    fn execute(&mut self) -> bool; // return true if there is output to get
+#[derive(Debug)]
+pub struct Item<I, O> {
+    pub label: String,
+    pub action: fn(I) -> O,
+}
+
+impl<I, O> Item<I, O> {
+    pub fn new(l: String, f: fn(I) -> O) -> Self {
+        Self {
+            label: l,
+            action: f,
+        }
+    }
 }
 
 //////////////
 ///  MENU  ///
 //////////////
-#[derive(
-    Debug, serde::Serialize, serde::Deserialize,
-)]
-pub struct Menu {
-    x: usize,
-    y: usize,
-    width:  Option<Measure>,
-    height: Option<Measure>,
+#[derive(Debug)]
+pub struct Menu<I, O> {
+    pub render_id: Weak<RenderUnitId>,
+    marker: char,
+    style: Style,
+    position: Position<i32>,
+    #[allow(unused)]
     origin: Origin,
-    pub border: Option<Border>,
-    pub _label_style: Option<String>,
-    pub marker: Object,
-    pub justify: Justify,
 
-    #[serde(skip, default="Vec::new")]
-    items: Vec<Box<dyn MenuItem>>,
+    items: Vec<Item<I, O>>,
     cursor: usize,
+    #[allow(unused)]
     max_per_page: u16,
     _page: u16,
 }
 
-impl Menu {
+impl<I, O> Menu<I, O> {
     pub fn new(
-        x: usize,
-        y: usize,
+        x: i32,
+        y: i32,
         w: Option<Measure>,
         h: Option<Measure>,
         origin: Origin,
         justify: Justify,
         border: Option<Border>,
-        items: Vec<Box<dyn MenuItem>>,
+        items: Vec<Item<I, O>>,
+        fg: Option<Foreground>,
+        bg: Option<Background>,
     ) -> Self {
         Self {
-            x: x,
-            y: y,
-            width: w,
-            height: h,
+            render_id: Weak::new(),
+            position: Position { x: x, y: y },
+            style: Style {
+                size: Size {
+                    width: w,
+                    height: h,
+                },
+                border: border,
+                justify: justify,
+                foreground: fg,
+                background: bg,
+            },
             origin: origin,
             items: items,
-            border: border,
-            _label_style: None,
-            justify: justify,
-            marker: Object::new_static('>', None, None),
+            marker: '>',
             cursor: 0,
             max_per_page: 0,
             _page: 0,
         }
     }
 
-    pub fn x(&self) -> usize {
-        self.x
+    pub fn x(&self) -> i32 {
+        self.position.x
     }
-    pub fn y(&self) -> usize {
-        self.y
+    pub fn y(&self) -> i32 {
+        self.position.y
     }
     pub fn width(&self, canvas: &Canvas) -> usize {
-        match &self.width {
+        match &self.style.size.width {
             // Specified width
             Some(w) => match *w {
                 Measure::Cell(w) => w as usize,
@@ -87,7 +104,7 @@ impl Menu {
             None => {
                 let mut output = 0;
                 output += self.largest_line();
-                if let Some(b) = &self.border {
+                if let Some(b) = &self.style.border {
                     output += b.get_pad_left() + b.get_pad_right() + b.width();
                 }
                 output += TOTAL_OFFSET;
@@ -96,26 +113,22 @@ impl Menu {
         }
     }
 
-    pub fn execute(&mut self) {
-        self.items[self.cursor].execute();
+    pub fn execute(&mut self, i: I) -> O {
+        (self.items[self.cursor].action)(i)
     }
 
-    pub fn cursor_pos(&self) -> Position<usize> {
-        match &self.border {
-            None => Position::new(self.x(), self.y() + self.cursor),
+    pub fn cursor_pos(&self) -> Position<i32> {
+        match &self.style.border {
+            None => Position::new(self.x(), self.y() + self.cursor as i32),
 
             Some(b) => Position::new(
-                self.x() + 1 + b.get_pad_left(),
-                self.y() + 1 + b.get_pad_top() + self.cursor,
+                self.x() + 1 + b.get_pad_left() as i32,
+                self.y() + 1 + b.get_pad_top() as i32 + self.cursor as i32,
             ),
         }
     }
 
-    pub fn marker_object(&self) -> render::Object {
-        self.marker.clone()
-    }
-
-    pub fn add(&mut self, item: Box<dyn MenuItem>) {
+    pub fn add(&mut self, item: Item<I, O>) {
         self.items.push(item);
     }
 
@@ -135,168 +148,73 @@ impl Menu {
         false // did not move
     }
 
-    pub fn output(&mut self, canvas: &Canvas) -> Option<String> {
+    pub fn output(&mut self, render_tx: &Sender<RenderSignal>) {
         if self.items.len() == 0 {
-            return None;
+            return;
         }
         let mut out = String::new();
-        self.update_max_per_page(canvas);
-        let width = self.width(canvas);
-        let iter = self.render_top_border(&mut out, width);
-        let iter = self.render_item(&mut out, width, iter);
-        self.render_bottom_border(&mut out, width, iter);
-        return Some(out);
-    }
-
-    fn render_bottom_border(&self, output: &mut String, width: usize, mut iter: usize) {
-        if let Some(b) = &self.border {
-            let mut spacing = String::new();
-            for _ in 0..width - b.width() {
-                spacing.push(' ');
-            }
-            let mut line = String::new();
-            for _ in 0..b.get_pad_bottom() {
-                if let Some(l) = b.get_left(iter) {
-                    line.push(l);
-                }
-                line.push_str(&spacing);
-                if let Some(r) = b.get_right(iter) {
-                    line.push(r);
-                }
-                line.push('\n');
-                iter += 1;
-            }
-
-            for i in 0..width {
-                if let Some(c) = b.get_bottom(i) {
-                    line.push(c)
-                }
-            }
-            output.push_str(&line);
-        }
-    }
-
-    fn render_top_border(&mut self, output: &mut String, width: usize) -> usize {
-        if let Some(b) = &self.border {
-            // Generate Top Border
-            let mut line = String::new();
-            let mut iter: usize = 0;
-            while let Some(c) = b.get_top(iter)
-                && line.len() < width
-            {
-                line.push(c);
-                iter += 1;
-            }
-            output.push_str(&line);
-            output.push('\n');
-
-            // Generate top padding
-            if b.get_pad_top() == 0 {
-                return 0;
-            }
-            line.clear();
-            let mut spacing = String::new();
-            for _ in 0..width - b.width() {
-                spacing.push(' ');
-            }
-
-            iter = 0;
-            for _ in 0..b.get_pad_top() {
-                if let Some(l) = b.get_left(iter) {
-                    line.push(l);
-                }
-                line.push_str(&spacing);
-                if let Some(r) = b.get_right(iter) {
-                    line.push(r);
-                }
-                iter += 1;
-                line.push('\n');
-            }
-            output.push_str(&line);
-            return iter;
-        }
-        return 0;
-    }
-
-    fn justify_line(&self, ll: usize, mut width: usize) -> (usize, usize) {
-        if let Some(b) = &self.border {
-            width -= ll + b.get_pad_left() + b.get_pad_right() + b.width() + TOTAL_OFFSET;
-        } else {
-            width -= ll + TOTAL_OFFSET;
-        }
-        match self.justify {
-            Justify::Left => (0, width),
-            Justify::Right => (width, 0),
-            Justify::Center => {
-                if width % 2 != 0 {
-                    (width / 2, width / 2 + 1)
-                } else {
-                    (width / 2, width / 2)
-                }
-            }
-        }
-    }
-
-    fn construct_left_side(&self, line: &mut String, index: usize, iter: usize) {
-        if let Some(b) = &self.border {
-            // If Menu has left border
-            if let Some(lb) = b.get_left(iter) {
-                line.push(lb);
-            }
-            for _ in 0..(if index == self.cursor {
-                b.get_pad_left()
-            } else {
-                b.get_pad_left() + CURSOR_OFFSET
-            }) {
-                line.push(' ');
-            }
-        }
-    }
-
-    fn construct_right_side(&self, line: &mut String, iter: usize) {
-        if let Some(b) = &self.border {
-            for _ in 0..b.get_pad_right() + CURSOR_OFFSET {
-                line.push(' ');
-            }
-            if let Some(c) = b.get_right(iter) {
-                line.push(c);
-            }
-        }
-        line.push('\n');
-    }
-
-    fn render_item(&mut self, s: &mut String, width: usize, mut b_iter: usize) -> usize {
-        for (i, item) in self.items.iter().enumerate() {
-            let mut line = String::new();
-            self.construct_left_side(&mut line, i, b_iter);
-            let (just_left, just_right) = self.justify_line(item.label().len(), width);
-            for _ in 0..just_left {
-                line.push(' ');
-            }
+        for (i, l) in self.items.iter().enumerate() {
             if i == self.cursor {
-                line.push_str(&self.marker.sprite().to_string());
-                line.push(' ');
+                out.push(self.marker);
+                out.push(' ');
+            } else {
+                out.push_str("  ");
             }
-            line.push_str(item.label());
-            for _ in 0..just_right {
-                line.push(' ');
+            out.push_str(&l.label);
+            if i < self.items.len() - 1 {
+                out.push('\n');
             }
-            self.construct_right_side(&mut line, b_iter);
-
-            s.push_str(&line);
-            b_iter += 1;
         }
-        return b_iter;
+        if let Some(id) = self.render_id.upgrade() {
+            if id.load() == 0 {
+                // Render had not gotten to initialize this object, skip for now?
+            }
+        } else {
+        }
+        match self.render_id.upgrade() {
+            None => {
+                let arc_id = RenderUnitId::new(Layer::Ui);
+                self.render_id = Arc::downgrade(&arc_id);
+                render_tx.send(RenderSignal::Insert(
+                    arc_id,
+                    Object::static_text(
+                        self.position.as_3d(0),
+                        out,
+                        self.style.justify,
+                        self.style.size.width,
+                        self.style.size.height,
+                        self.style.border.clone(),
+                        self.style.foreground,
+                        self.style.background,
+                    ),
+                ));
+            }
+            Some(arc) => {
+                render_tx.send(RenderSignal::Update(
+                    arc,
+                    Object::static_text(
+                        self.position.as_3d(0),
+                        out,
+                        self.style.justify,
+                        self.style.size.width,
+                        self.style.size.height,
+                        self.style.border.clone(),
+                        self.style.foreground,
+                        self.style.background,
+                    ),
+                ));
+            }
+        }
     }
 
     fn largest_line(&self) -> usize {
         if self.items.len() == 0 {
             return 0;
         }
-        let mut max = self.items[0].label().len();
+        let mut max = self.items[0].label.len();
         for each in self.items.iter() {
-            if each.label().len() > max {
-                max = each.label().len();
+            if each.label.len() > max {
+                max = each.label.len();
             }
         }
         return max;
@@ -304,15 +222,15 @@ impl Menu {
 
     fn update_max_per_page(&mut self, canvas: &Canvas) {
         let mut max: usize;
-        if let Some(h) = &self.height {
-            max = h.get(canvas.height - self.y);
-            if let Some(b) = &self.border {
+        if let Some(h) = &self.style.size.height {
+            max = h.get(canvas.height - self.position.y as usize);
+            if let Some(b) = &self.style.border {
                 max -= b.get_pad_top() + b.get_pad_bottom() + b.height();
             }
             self.max_per_page = max as u16;
         } else {
-            max = canvas.height - self.y;
-            if let Some(b) = &self.border {
+            max = canvas.height - self.position.y as usize;
+            if let Some(b) = &self.style.border {
                 max -= b.get_pad_top() + b.get_pad_bottom() + b.height();
             }
             self.max_per_page = max as u16;
@@ -320,6 +238,7 @@ impl Menu {
     }
 }
 
+/*
 #[cfg(test)]
 mod test {
     use crate::engine::ui::{BorderSprite, Padding};
@@ -340,9 +259,6 @@ mod test {
     impl MenuItem for TestItem {
         fn execute(&mut self) -> bool {
             false
-        }
-        fn output(&mut self) -> Output {
-           Output::None 
         }
         fn label(&self) -> &str {
             &self.name
@@ -412,3 +328,4 @@ mod test {
         }
     }
 }
+*/

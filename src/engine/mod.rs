@@ -19,6 +19,7 @@ pub mod input;
 pub mod ui;
 
 pub mod types;
+pub use types::Instance;
 
 #[macro_use]
 pub mod macros;

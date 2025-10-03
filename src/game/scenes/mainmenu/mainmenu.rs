@@ -1,21 +1,22 @@
 #![deny(unused)]
 
+use term::color::{Background, Color, Foreground, Iso};
 
 use crate::{
     engine::{
-        enums::Signal,
+        enums::{RenderSignal, SceneSignal, Signal},
         input::{Event, KeyEvent},
-        render::{self, insert_text, Canvas},
-        types::Position,
+        render::Canvas,
         ui::{
-            style::{Justify, Origin}, Border, BorderSprite, Menu, MenuItem, Output, Padding
+            Border, BorderSprite, Menu, MenuItem, Padding,
+            style::{Justify, Origin},
         },
     },
     game::{Game, LoadGame, Settings},
 };
-use std::sync::mpsc::Sender;
-
+#[allow(unused)]
 enum Signals {
+    None,
     Quit,
     NewScene(Game),
 }
@@ -23,7 +24,7 @@ enum Signals {
 use std::sync::mpsc;
 
 pub struct MainMenu {
-    menu: Menu,
+    menu: Menu<(), Signals>,
     init_complete: bool,
 }
 
@@ -40,34 +41,41 @@ impl MainMenu {
                 Some(Border::from(
                     BorderSprite::String("|#".to_string()),
                     Padding::square(2),
-                )),
+                ).top(BorderSprite::String("-#".to_string())).bottom(BorderSprite::String("-#".to_string()))),
                 vec![
-                    LoadGameItem::new("Play"),
+                    MenuItem {
+                        label: String::from("Play"),
+                        action: |_| -> Signals { Signals::NewScene(LoadGame::new()) },
+                    },
                     MenuItem {
                         label: String::from("Settings"),
-                        action: |_| -> Option<Signals> { Some(Signals::NewScene(Settings::new())) },
+                        action: |_| -> Signals { Signals::NewScene(Settings::new()) },
                     },
                     MenuItem {
                         label: String::from("Quit"),
-                        action: |_| -> Option<Signals> { Some(Signals::Quit) },
+                        action: |_| -> Signals { Signals::Quit },
                     },
                 ],
+                Some(Foreground::new(Color::Iso {
+                    color: Iso::Blue,
+                    bright: true,
+                })),
+                Some(Background::new(Color::None)),
             ),
             init_complete: false,
         })
     }
 
-    pub fn init(&mut self, render_tx: &mpsc::Sender<render::Msg>, canvas: &Canvas) -> Signal<Game> {
-        if let Some(out) = self.menu.output(canvas) {
-            let _ = render_tx.send(render::Msg::InsertText {
-                pos: Position::new(self.menu.x(), self.menu.y()),
-                text: out,
-                prefix: None,
-                suffix: None,
-            });
-        }
+    pub fn init(
+        &mut self,
+        render_tx: &mpsc::Sender<RenderSignal>,
+        _canvas: &Canvas,
+    ) -> Signal<Game> {
+        self.menu.output(render_tx);
         self.init_complete = true;
-
+        if let Err(_e) = render_tx.send(RenderSignal::Redraw) {
+            // Log that there was a problem
+        }
         Signal::None
     }
 
@@ -79,7 +87,7 @@ impl MainMenu {
         &mut self,
         _delta_time: f32,
         event: &mpsc::Receiver<Event>,
-        render_tx: &mpsc::Sender<render::Msg>,
+        render_tx: &mpsc::Sender<RenderSignal>,
         _canvas: &Canvas,
     ) -> Signal<Game> {
         let mut signals: Vec<Signal<Game>> = vec![];
@@ -90,53 +98,27 @@ impl MainMenu {
                         return Signal::Quit;
                     }
                     KeyEvent::Char('e') => {}
-                    KeyEvent::Char('B') => {
-                        let _ = render::insert_text(1, 1, "Term RPG".to_string(), render_tx);
-                    }
+                    KeyEvent::Char('B') => {}
                     KeyEvent::Up | KeyEvent::Char('w') => {
-                        let pre_pos = { self.menu.cursor_pos() };
                         if self.menu.cursor_up(1) {
-                            let _ = render_tx.send(render::Msg::Batch(vec![
-                                render::Msg::Remove(pre_pos),
-                                render::Msg::Insert(
-                                    self.menu.cursor_pos(),
-                                    self.menu.marker_object(),
-                                ),
-                            ]));
+                            self.menu.output(render_tx);
                         }
                     }
                     KeyEvent::Down | KeyEvent::Char('s') => {
-                        let pre_pos = self.menu.cursor_pos();
                         if self.menu.cursor_down(1) {
-                            let _ = render_tx.send(render::Msg::Batch(vec![
-                                render::Msg::Remove(pre_pos),
-                                render::Msg::Insert(
-                                    self.menu.cursor_pos(),
-                                    self.menu.marker_object(),
-                                ),
-                            ]));
+                            self.menu.output(render_tx);
                         }
                     }
-                    KeyEvent::Right | KeyEvent::Char('d') => {
-                        if let Some(output) = self.menu.execute(()) {
-                            match output {
-                                Signals::Quit => {
-                                    signals.push(Signal::Quit);
-                                }
-                                Signals::NewScene(s) => {
-                                    signals.push(Signal::NewScene(s));
-                                }
-                            }
+                    KeyEvent::Right | KeyEvent::Char('d') => match self.menu.execute(()) {
+                        Signals::Quit => {
+                            signals.push(Signal::Quit);
                         }
-                    }
-                    KeyEvent::Char('c') => {
-                        let _ = render_tx.send(render::Msg::InsertText {
-                            pos: Position::new(5, 5),
-                            text: "This\nIs\nSparta".to_string(),
-                            prefix: None,
-                            suffix: None,
-                        });
-                    }
+                        Signals::NewScene(s) => {
+                            signals.push(Signal::Scenes(SceneSignal::New(s)));
+                        }
+                        Signals::None => {}
+                    },
+                    KeyEvent::Char('c') => {}
                     _ => {}
                 },
                 _ => {}
@@ -152,18 +134,16 @@ impl MainMenu {
         false
     }
     pub fn reset(&mut self) {}
-    pub fn resume(&mut self, render_tx: &mpsc::Sender<render::Msg>, canvas: &Canvas) {
-        if let Some(out) = self.menu.output(canvas) {
-            let _ = insert_text(self.menu.x(), self.menu.y(), out, render_tx);
+    pub fn resume(&mut self, render_tx: &mpsc::Sender<RenderSignal>, _canvas: &Canvas) {
+        if let Err(_e) = render_tx.send(RenderSignal::Clear) {
+            // Log that there is a problem
         }
+        self.menu.output(render_tx);
     }
     #[allow(unused)]
-    pub fn suspend(&mut self, render_tx: &mpsc::Sender<render::Msg>) {}
+    pub fn suspend(&mut self, render_tx: &mpsc::Sender<RenderSignal>) {
+        if let Err(_e) = render_tx.send(RenderSignal::Clear) {
+            // Log that there is a problem
+        }
+    }
 }
-
-//crate::menu_item_scene_push!{Game, LoadGame::new(), LoadGameItem}
-
-
-//crate::menu_item_scene_push!{Game, Settings::new(), SettingsItem}
-
-//crate::new_scene!{Game, TestingThisMacro, {Signal::None}, true, false, {Signal::None}, {}, {}, {}, testing{name: String, test: bool, x: u32, y: u32}}

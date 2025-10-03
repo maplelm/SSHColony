@@ -1,8 +1,8 @@
 #![deny(unused)]
 
-use super::enums::Msg;
+use super::super::enums::RenderSignal;
 use std::sync::mpsc;
 
-pub fn clear(tx: &mpsc::Sender<Msg>) -> Result<(), mpsc::SendError<Msg>> {
-    tx.send(Msg::Clear)
+pub fn clear(tx: &mpsc::Sender<RenderSignal>) -> Result<(), mpsc::SendError<RenderSignal>> {
+    tx.send(RenderSignal::Clear)
 }

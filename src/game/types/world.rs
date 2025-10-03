@@ -1,11 +1,11 @@
 #![allow(dead_code, unused)]
-use super::entity::{Entity, EntityTemplate};
+use super::entity::{self, Entity};
 use super::material::Material;
 use super::tile::{self, Tile};
 use crate::engine::Error;
 use crate::engine::{
     self,
-    render::{self, Object},
+    render::{self, ObjectTemplate},
     types::{File, Position3D, SparseSet, Store},
 };
 use serde;
@@ -24,7 +24,7 @@ pub struct WorldSave {
     pub world_size: Position3D<usize>,
     pub materials: SparseSet<Material>,
     pub entities: SparseSet<Entity>,
-    pub tiles: Vec<Tile>,
+    pub tiles: SparseSet<Tile>,
 }
 
 impl WorldSave {
@@ -49,16 +49,25 @@ pub struct World {
     pub avg_height: f32,
     pub sea_level: f32,
     pub world_size: Position3D<usize>,
-    #[serde(default = "world_init_materials")]
+    #[serde(skip, default = "world_init_materials")]
     pub material_templates: Store<Material>,
-    #[serde(default = "world_init_entitytemplate")]
-    pub entity_templates: Store<EntityTemplate>,
+    #[serde(skip, default = "world_init_entitytemplate")]
+    pub entity_templates: Store<entity::Template>,
+    #[serde(skip, default = "world_init_sprite_template")]
+    pub sprite_templates: Store<ObjectTemplate>,
     pub materials: SparseSet<Material>,
     pub entities: SparseSet<Entity>,
     pub tiles: SparseSet<Tile>,
 }
 
-fn world_init_entitytemplate() -> Store<EntityTemplate> {
+fn world_init_sprite_template() -> Store<ObjectTemplate> {
+    match Store::from_dir("./data/sprites/") {
+        Err(e) => panic!("world_init_sprite_template: {e}"),
+        Ok(s) => s
+    }
+}
+
+fn world_init_entitytemplate() -> Store<entity::Template> {
     match Store::from_dir("./data/entities/") {
         Err(e) => panic!("world_init_entitytemplate: {e}"),
         Ok(s) => s,
@@ -85,33 +94,30 @@ impl World {
         ent_dir: &str,
         spr_dir: &str,
     ) -> Result<Self, Error> {
-        let mut materials: Store<Material>;
-        match Store::<Material>::from_dir(mat_dir) {
+        let mut material_templates: Store<Material> = match Store::<Material>::from_dir(mat_dir) {
             Err(e) => return Err(Error::IO(e)),
-            Ok(m) => materials = m,
-        }
-        let mut entities: Store<EntityTemplate>;
-        match Store::<EntityTemplate>::from_dir(ent_dir) {
+            Ok(m) => m,
+        };
+        let mut entity_templates: Store<entity::Template> = match Store::<entity::Template>::from_dir(ent_dir) {
             Err(e) => return Err(Error::IO(e)),
-            Ok(e) => entities = e,
-        }
-        let mut sprites: Store<Object>;
-        match Store::<Object>::from_dir(spr_dir) {
+            Ok(e) => e,
+        };
+        let mut sprite_templates: Store<ObjectTemplate> = match Store::<ObjectTemplate>::from_dir(spr_dir) {
             Err(e) => return Err(Error::IO(e)),
-            Ok(o) => sprites = o,
-        }
+            Ok(o) => o,
+        };
         let mut world = Self {
             name: name,
             world_size: Position3D::new(x, y, z),
             avg_temp: temp,
             avg_height: height,
             sea_level: sea,
-            material_templates: materials,
-            entity_templates: entities,
-            sprite_templates: sprites,
-            materials: vec![],
-            entities: vec![],
-            tiles: Vec::with_capacity(x * y * z),
+            material_templates: material_templates,
+            entity_templates: entity_templates,
+            sprite_templates: sprite_templates,
+            materials: SparseSet::new(20000),
+            entities: SparseSet::new(20000),
+            tiles: SparseSet::new((x * y * z) + 5),
         };
         return Ok(world);
     }
@@ -121,8 +127,7 @@ impl World {
     }
 
     pub fn tile_at(&mut self, x: usize, y: usize, z: usize) -> Option<&mut Tile> {
-        self.tiles
-            .get_mut(z * (self.world_size.y * self.world_size.x) + (y * self.world_size.x) + x)
+        self.tiles.get_mut(z * (self.world_size.y * self.world_size.x) + (y * self.world_size.x) + x)
     }
 
     pub fn generate(&mut self, seed: Option<usize>) -> Result<(), engine::Error> {
@@ -130,10 +135,10 @@ impl World {
             let pos = self.index_to_pos(index);
             if pos.z > 0 {
                 self.tiles
-                    .push(Tile::new(0, None, None, tile::Shape::OpenSpace, 0));
+                    .insert(index, Tile::new(0, None, None, tile::Shape::OpenSpace, 0));
             } else {
                 self.tiles
-                    .push(Tile::new(0, None, None, tile::Shape::Floor, 0));
+                    .insert(index, Tile::new(0, None, None, tile::Shape::Floor, 0));
             }
         }
         Ok(())

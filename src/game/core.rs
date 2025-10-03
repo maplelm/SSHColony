@@ -1,14 +1,15 @@
 #![allow(unreachable_patterns)]
+#![deny(unused)]
 
 use super::scenes::{InGame, LoadGame, MainMenu, Settings};
 use crate::engine::{
-    enums::Signal,
+    enums::{Signal, RenderSignal},
     input::Event,
-    render::{self, Canvas},
+    render::Canvas,
     traits::Scene,
 };
 //use crate::engine::Scene::is_paused;
-use std::sync::mpsc;
+use std::sync::mpsc::{Sender, Receiver};
 
 pub enum Game {
     MainMenu(MainMenu),
@@ -18,7 +19,7 @@ pub enum Game {
 }
 
 impl Scene<Game> for Game {
-    fn init(&mut self, render_tx: &mpsc::Sender<render::Msg>, canvas: &Canvas) -> Signal<Game> {
+    fn init(&mut self, render_tx: &Sender<RenderSignal>, canvas: &Canvas) -> Signal<Game> {
         match self {
             Game::MainMenu(s) => s.init(render_tx, canvas),
             Game::InGame(s) => s.init(render_tx, canvas),
@@ -50,7 +51,7 @@ impl Scene<Game> for Game {
             Game::LoadGame(s) => s.reset(),
         }
     }
-    fn resume(&mut self, render_tx: &mpsc::Sender<render::Msg>, canvas: &Canvas) {
+    fn resume(&mut self, render_tx: &Sender<RenderSignal>, canvas: &Canvas) {
         match self {
             Game::MainMenu(s) => s.resume(render_tx, canvas),
             Game::Settings(s) => s.resume(canvas),
@@ -58,7 +59,7 @@ impl Scene<Game> for Game {
             Game::LoadGame(s) => s.resume(render_tx, canvas),
         }
     }
-    fn suspend(&mut self, render_tx: &mpsc::Sender<render::Msg>) {
+    fn suspend(&mut self, render_tx: &Sender<RenderSignal>) {
         match self {
             Game::MainMenu(s) => s.suspend(render_tx),
             Game::Settings(s) => s.suspend(),
@@ -69,8 +70,8 @@ impl Scene<Game> for Game {
     fn update(
         &mut self,
         delta_time: f32,
-        event: &mpsc::Receiver<Event>,
-        render_tx: &std::sync::mpsc::Sender<render::Msg>,
+        event: &Receiver<Event>,
+        render_tx: &std::sync::mpsc::Sender<RenderSignal>,
         canvas: &Canvas,
     ) -> Signal<Game> {
         match self {

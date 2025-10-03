@@ -10,4 +10,4 @@ pub use border::BorderSprite;
 pub use border::Padding;
 
 pub use menu::Menu;
-pub use menu::MenuItem;
+pub use menu::Item as MenuItem;

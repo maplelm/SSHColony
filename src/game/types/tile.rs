@@ -1,22 +1,21 @@
 #![allow(dead_code, unused)]
-use super::{EntityID, MaterialID};
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Tile {
     pub flags: u16,
-    pub ocupency: Option<EntityID>,
-    pub fluid: Option<MaterialID>,
+    pub ocupency: Option<usize>,
+    pub fluid: Option<(usize, usize)>, // material id, amount of liquid,
     pub shape: Shape,
-    pub material: MaterialID,
+    pub material: usize,
 }
 
 impl Tile {
     pub fn new(
         flag: u16,
-        entity: Option<EntityID>,
-        l: Option<MaterialID>,
+        entity: Option<usize>,
+        l: Option<(usize, usize)>,
         s: Shape,
-        mat: MaterialID,
+        mat: usize,
     ) -> Self {
         Self {
             flags: flag,

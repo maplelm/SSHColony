@@ -1,12 +1,8 @@
 use crate::{
     engine::{
-        self, Error,
-        enums::Signal,
-        input::{Event, KeyEvent},
-        render::{self, Canvas},
-        traits::Scene,
+        self, enums::{RenderSignal, Signal}, input::{Event, KeyEvent}, render::{self, Canvas}, traits::Scene, Error
     },
-    game::{Game, types::World},
+    game::{types::World, Game},
 };
 use std::{marker::PhantomData, sync::mpsc};
 pub struct InGame {
@@ -51,7 +47,7 @@ impl InGame {
 impl InGame {
     pub fn init(
         &mut self,
-        _render_tx: &mpsc::Sender<render::Msg>,
+        _render_tx: &mpsc::Sender<RenderSignal>,
         canvas: &Canvas,
     ) -> Signal<Game> {
         let _ = self.world.generate(None);
@@ -72,7 +68,7 @@ impl InGame {
         &mut self,
         delta_time: f32,
         event: &mpsc::Receiver<Event>,
-        render_tx: &std::sync::mpsc::Sender<render::Msg>,
+        render_tx: &std::sync::mpsc::Sender<RenderSignal>,
         canvas: &Canvas,
     ) -> Signal<Game> {
         for event in event.try_iter() {

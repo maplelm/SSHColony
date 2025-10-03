@@ -13,6 +13,9 @@ impl<T: Numeric> Position<T> {
             y: y
         }
     }
+    pub fn as_3d(&self, depth: T) -> Position3D<T> {
+        Position3D { x: self.x, y: self.y, z: depth }
+    }
 }
 
 #[derive(Debug, Copy, Hash, Clone, Eq, PartialEq, PartialOrd, Ord, serde::Deserialize, serde::Serialize)]
@@ -29,5 +32,9 @@ impl<T: Numeric> Position3D<T> {
             y: y,
             z: z
         }
+    }
+
+    pub fn as_2d(&self) -> Position<T> {
+        Position { x: self.x, y: self.y }
     }
 }

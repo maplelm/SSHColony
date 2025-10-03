@@ -4,7 +4,7 @@ use crate::{
         traits::Storeable,
         types::{Position, Position3D, Store},
     },
-    game::types::{Inventory, Stat, StatTemplate},
+    game::types::{inventory::Inventory, stat::Stat, stat::StatTemplate},
 };
 use std::sync::{Arc, Weak, atomic::AtomicUsize};
 use std::{cmp::Ordering, collections::HashMap, hash::Hash};

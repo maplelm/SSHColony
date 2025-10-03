@@ -1,3 +1,6 @@
+
+use crate::engine::types::{Position, Position3D};
+
 use super::Object;
 
 pub struct Camera {
@@ -52,7 +55,7 @@ impl Camera {
         self
     }
 
-    pub fn in_view(&self, object: Object) -> bool {
+    pub fn in_view(&self, object: &Object) -> bool {
         let pos = object.pos();
         if !(pos.x >= self.x && pos.x < self.x+self.width as i32) {
             return false;
@@ -94,6 +97,13 @@ impl Camera {
         self.x = x;
         self.y = y;
         self.z = z;
+    }
+
+    pub fn get_screen_pos(&self, obj_pos: Position3D<i32>) -> Position<i32> {
+        Position {
+            x: obj_pos.x - self.x,
+            y: obj_pos.y - self.y
+        }
     }
 
 

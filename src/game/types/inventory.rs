@@ -1,8 +1,7 @@
-use super::EntityID;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Inventory {
-    items: Vec<EntityID>,
+    items: Vec<usize>,
     max_weight: u32,
 }
 

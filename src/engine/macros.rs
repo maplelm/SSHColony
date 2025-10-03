@@ -1,7 +1,6 @@
+/* 
 #![allow(unused, unused_variables)]
 use std::sync::mpsc::Sender;
-use crate::engine::ui::Output;
-use crate::engine::render::Msg;
 
 #[macro_export]
 macro_rules! menu_item_scene_push {
@@ -77,3 +76,4 @@ macro_rules! new_scene_struct {
         
     };
 }
+*/

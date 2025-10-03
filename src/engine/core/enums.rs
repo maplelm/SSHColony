@@ -26,12 +26,15 @@ pub enum SceneSignal<T: Scene<T>> {
 
 pub enum RenderSignal {
     Insert(Arc<RenderUnitId>, Object),
-    Remove(RenderUnitId),
-    Move(RenderUnitId, Position3D<i32>),
-    MoveLayer(RenderUnitId, Layer),
+    Remove(Arc<RenderUnitId>),
+    Move(Arc<RenderUnitId>, Position3D<i32>),
+    MoveLayer(Arc<RenderUnitId>, Layer),
     TermSizeChange(u32, u32),
     Foreground(Foreground),
     Background(Background),
+    MoveCamera(Position3D<i32>),
+    SetCamera(Position3D<i32>),
+    Update(Arc<RenderUnitId>, Object),
     Redraw,
     Clear,
     Batch(Vec<RenderSignal>),

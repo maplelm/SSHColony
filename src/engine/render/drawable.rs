@@ -1,9 +1,10 @@
-#![deny(unused)]
+//#![deny(unused)]
 
-use super::{Canvas, Layer};
+use super::Canvas;
 use crate::engine::types::Position3D;
 use crate::engine::ui::style::Justify;
 use crate::engine::ui::{Border, style::Measure};
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::time::{Duration, Instant};
 use term::color::{Background, Foreground};
@@ -11,35 +12,48 @@ use term::color::{Background, Foreground};
 ////////////////////////////////////////////////////////////////////////////////////////////////
 // Sprites /////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SpriteBase {
     pub symbol: char,
     pub fg: Option<Foreground>,
     pub bg: Option<Background>,
+    cached: Option<String>,
 }
 impl SpriteBase {
-    pub fn to_string(&self) -> String {
-        let mut s: String;
-        if let Some(fg) = self.fg.as_ref() {
-            s = fg.to_ansi();
-            s.push(self.symbol);
+    pub fn new(sym: char, fg: Option<Foreground>, bg: Option<Background>) -> Self {
+        Self {
+            symbol: sym,
+            fg: fg,
+            bg: bg,
+            cached: None,
+        }
+    }
+    pub fn as_str(&mut self) -> &str {
+        if self.cached.is_some() {
+            self.cached.as_ref().unwrap()
         } else {
-            s = String::from(self.symbol);
+            let mut s: String;
+            if let Some(fg) = self.fg.as_ref() {
+                s = fg.to_ansi();
+                s.push(self.symbol);
+            } else {
+                s = String::from(self.symbol);
+            }
+            if let Some(bg) = self.bg.as_ref() {
+                s.push_str(&bg.to_ansi());
+            }
+            self.cached = Some(s);
+            self.cached.as_ref().unwrap()
         }
-        if let Some(bg) = self.bg.as_ref() {
-            s.push_str(&bg.to_ansi());
-        }
-        return s;
     }
 }
 
 ////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StaticSprite {
     pub pos: Position3D<i32>,
-    pub layer: Layer,
     pub base: SpriteBase,
 }
 
@@ -64,29 +78,32 @@ impl Display for StaticSprite {
 }
 
 impl StaticSprite {
-    pub fn to_string(&self) -> String {
-        self.base.to_string()
+    pub fn as_str(&mut self) -> &str {
+        self.base.as_str()
     }
 }
 
 ////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DynamicSprite {
     pub pos: Position3D<i32>,
-    pub layer: Layer,
     pub sprite_sheet: Vec<SpriteBase>,
     pub tick: Duration,
+    #[serde(skip, default = "DynamicSprite::default_cursor_pos")]
     pub cursor: usize,
+    #[serde(skip, default = "Instant::now")]
     pub last_tick: Instant,
 }
 
 impl DynamicSprite {
-    pub fn new(pos: Position3D<i32>, layer: Layer, ss: Vec<SpriteBase>, tick: Duration) -> Self {
+    fn default_cursor_pos() -> usize {
+        0
+    }
+    pub fn new(pos: Position3D<i32>, ss: Vec<SpriteBase>, tick: Duration) -> Self {
         Self {
             pos: pos,
-            layer: layer,
             sprite_sheet: ss,
             tick: tick,
             cursor: 0,
@@ -94,8 +111,8 @@ impl DynamicSprite {
         }
     }
 
-    pub fn to_string(&self) -> String {
-        self.sprite_sheet[self.cursor].to_string()
+    pub fn as_str(&mut self) -> &str {
+        self.sprite_sheet[self.cursor].as_str()
     }
 
     pub fn update(&mut self) -> bool {
@@ -109,44 +126,79 @@ impl DynamicSprite {
     }
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Text /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Text ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TextBase {
-    pub text: String,
-    pub justify: Justify,
-    pub width: Option<Measure>,
-    pub height: Option<Measure>,
-    pub border: Option<Border>,
-    pub fg: Option<Foreground>,
-    pub bg: Option<Background>,
+    text: String,
+    justify: Justify,
+    width: Option<Measure>,
+    height: Option<Measure>,
+    border: Option<Border>,
+    fg: Option<Foreground>,
+    bg: Option<Background>,
+    cached: Option<String>,
 }
 
 impl TextBase {
-    // Does not consider the Height measurement
-    pub fn to_string(&self, canvas: &Canvas) -> String {
-        let width = self.width(canvas);
-        let fg = if let Some(fg) = self.fg.as_ref() {
-            fg.to_ansi()
-        } else {
-            "".to_string()
-        };
-        let bg = if let Some(bg) = self.bg.as_ref() {
-            bg.to_ansi()
-        } else {
-            "".to_string()
-        };
-        let mut prefix = fg;
-        prefix.push_str(&bg);
-        let mut output = String::from(&prefix);
+    pub fn new(
+        text: String,
+        justify: Justify,
+        width: Option<Measure>,
+        height: Option<Measure>,
+        border: Option<Border>,
+        fg: Option<Foreground>,
+        bg: Option<Background>,
+    ) -> Self {
+        Self {
+            text: text,
+            justify: justify,
+            width: width,
+            height: height,
+            border: border,
+            fg: fg,
+            bg: bg,
+            cached: None,
+        }
+    }
 
-        self.top_border(width, &mut output);
-        let iter = self.top_padding(width, &mut output, &prefix);
-        let iter = self.lines(width, &mut output, &prefix, iter);
-        self.bottom_padding(width, &mut output, &prefix, iter);
-        self.bottom_border(width, &mut output, &prefix);
+    // Does not consider the Height measurement
+    pub fn as_str(&mut self, canvas: &Canvas) -> &str {
+        if self.cached.is_some() {
+            self.cached.as_ref().unwrap()
+        } else {
+            let width = self.width(canvas);
+            let color = TextBase::color_string(&self.fg, &self.bg);
+            let mut output = String::from(&color);
+
+            self.top_border(width, &mut output);
+            let iter = self.top_padding(width, &mut output, &color);
+            let iter = self.lines(width, &mut output, &color, iter);
+            self.bottom_padding(width, &mut output, &color, iter);
+            self.bottom_border(width, &mut output, &color);
+            self.cached = Some(output);
+            self.cached.as_ref().unwrap()
+        }
+    }
+
+    pub fn fg(&self) -> Option<&Foreground> {
+        self.fg.as_ref()
+    }
+
+    pub fn bg(&self) -> Option<&Background> {
+        self.bg.as_ref()
+    }
+
+    fn color_string(fg: &Option<Foreground>, bg: &Option<Background>) -> String {
+        let mut output: String = String::new();
+        if let Some(fg) = fg {
+            output.push_str(&fg.to_ansi());
+        }
+        if let Some(bg) = bg {
+            output.push_str(&bg.to_ansi());
+        }
         return output;
     }
 
@@ -244,11 +296,8 @@ impl TextBase {
                 if let Some(c) = b.get_left(iter) {
                     output.push(c);
                 }
-                for _ in 0..b.get_pad_left() {
-                    output.push(' ');
-                }
                 let (jl, jr) = self.get_justfy_gaps(line.len(), width);
-                for _ in 0..jl {
+                for _ in 0..(b.get_pad_left() + jl) {
                     output.push(' ');
                 }
                 if let Some(s) = self.truncate_line(line, width) {
@@ -256,8 +305,11 @@ impl TextBase {
                 } else {
                     output.push_str(line);
                 }
-                for _ in 0..jr {
+                for _ in 0..(b.get_pad_right() + jr) {
                     output.push(' ');
+                }
+                if let Some(c) = b.get_right(iter) {
+                    output.push(c);
                 }
                 output.push('\n');
                 iter += 1;
@@ -328,29 +380,29 @@ impl TextBase {
 // Static Text //////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StaticText {
     pub pos: Position3D<i32>,
-    pub layer: Layer,
     pub base: TextBase,
 }
 
 impl StaticText {
-    pub fn to_string(&self, canvas: &Canvas) -> String {
-        self.base.to_string(canvas)
+    pub fn as_str(&mut self, canvas: &Canvas) -> &str {
+        self.base.as_str(canvas)
     }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Dynamic Text /////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DynamicText {
     pub pos: Position3D<i32>,
-    pub layer: Layer,
     pub text_sheet: Vec<TextBase>,
     pub tick: Duration,
+    #[serde(skip, default = "DynamicText::default_cursor_pos")]
     pub cursor: usize,
+    #[serde(skip, default = "Instant::now")]
     pub last_tick: Instant,
 }
 
@@ -359,8 +411,8 @@ impl DynamicText {
         0
     }
 
-    pub fn to_string(&self, canvas: &Canvas) -> String {
-        self.text_sheet[self.cursor].to_string(canvas)
+    pub fn as_str(&mut self, canvas: &Canvas) -> &str {
+        self.text_sheet[self.cursor].as_str(canvas)
     }
 
     pub fn update(&mut self) -> bool {
@@ -373,4 +425,3 @@ impl DynamicText {
         }
     }
 }
-
