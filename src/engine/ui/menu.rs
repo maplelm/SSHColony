@@ -10,7 +10,7 @@ use super::{
 };
 use crate::engine::enums::RenderSignal;
 use crate::engine::render::{Layer, Object, RenderUnitId};
-use crate::engine::ui::style::Justify;
+use crate::engine::ui::style::{Align, Justify};
 use term::color::{Background, Foreground};
 
 #[allow(unused)]
@@ -60,6 +60,7 @@ impl<I, O> Menu<I, O> {
         h: Option<Measure>,
         origin: Origin,
         justify: Justify,
+        align: Align,
         border: Option<Border>,
         items: Vec<Item<I, O>>,
         fg: Option<Foreground>,
@@ -67,7 +68,7 @@ impl<I, O> Menu<I, O> {
     ) -> Self {
         Self {
             render_id: Weak::new(),
-            position: Position { x: x, y: y },
+            position: Position { x: x + 1, y: y + 1 },
             style: Style {
                 size: Size {
                     width: w,
@@ -75,6 +76,7 @@ impl<I, O> Menu<I, O> {
                 },
                 border: border,
                 justify: justify,
+                align: align,
                 foreground: fg,
                 background: bg,
             },
@@ -149,9 +151,6 @@ impl<I, O> Menu<I, O> {
     }
 
     pub fn output(&mut self, render_tx: &Sender<RenderSignal>) {
-        if self.items.len() == 0 {
-            return;
-        }
         let mut out = String::new();
         for (i, l) in self.items.iter().enumerate() {
             if i == self.cursor {
@@ -181,6 +180,7 @@ impl<I, O> Menu<I, O> {
                         self.position.as_3d(0),
                         out,
                         self.style.justify,
+                        self.style.align,
                         self.style.size.width,
                         self.style.size.height,
                         self.style.border.clone(),
@@ -196,6 +196,7 @@ impl<I, O> Menu<I, O> {
                         self.position.as_3d(0),
                         out,
                         self.style.justify,
+                        self.style.align,
                         self.style.size.width,
                         self.style.size.height,
                         self.style.border.clone(),

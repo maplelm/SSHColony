@@ -5,11 +5,16 @@ use crate::{
         enums::{RenderSignal, SceneSignal, Signal},
         input::{Event, KeyEvent},
         render::{self, Canvas, Object, RenderUnitId},
-        traits::Scene, types::Position3D, ui::style::Justify,
+        traits::Scene,
+        types::Position3D,
+        ui::style::{Align, Justify},
     },
     game::Game,
 };
-use std::{marker::PhantomData, sync::{atomic::AtomicUsize, mpsc, Arc, Weak}};
+use std::{
+    marker::PhantomData,
+    sync::{Arc, Weak, atomic::AtomicUsize, mpsc},
+};
 
 pub struct Settings {
     text_handle: Weak<RenderUnitId>,
@@ -26,11 +31,25 @@ impl Settings {
 }
 
 impl Settings {
-    pub fn init(&mut self, render_tx: &mpsc::Sender<RenderSignal>, canvas: &Canvas) -> Signal<Game> {
+    pub fn init(
+        &mut self,
+        render_tx: &mpsc::Sender<RenderSignal>,
+        canvas: &Canvas,
+    ) -> Signal<Game> {
         render_tx.send(RenderSignal::Clear);
         let arc_new = Arc::<RenderUnitId>::new(RenderUnitId::Ui(AtomicUsize::new(0)));
         self.text_handle = Arc::downgrade(&arc_new);
-        let obj = Object::static_text(Position3D{x: 1, y: 1, z: 0}, "Settings!".to_string(), Justify::Left, None, None, None, None, None);
+        let obj = Object::static_text(
+            Position3D { x: 1, y: 1, z: 0 },
+            "Settings!".to_string(),
+            Justify::Left,
+            Align::Top,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
         render_tx.send(RenderSignal::Insert(arc_new, obj));
         self.init_complete = true;
 
@@ -71,4 +90,3 @@ impl Settings {
         }
     }
 }
-

@@ -2,7 +2,7 @@
 
 use super::Canvas;
 use crate::engine::types::Position3D;
-use crate::engine::ui::style::Justify;
+use crate::engine::ui::style::{Align, Justify};
 use crate::engine::ui::{Border, style::Measure};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -134,6 +134,7 @@ impl DynamicSprite {
 pub struct TextBase {
     text: String,
     justify: Justify,
+    align: Align,
     width: Option<Measure>,
     height: Option<Measure>,
     border: Option<Border>,
@@ -146,6 +147,7 @@ impl TextBase {
     pub fn new(
         text: String,
         justify: Justify,
+        align: Align,
         width: Option<Measure>,
         height: Option<Measure>,
         border: Option<Border>,
@@ -155,6 +157,7 @@ impl TextBase {
         Self {
             text: text,
             justify: justify,
+            align: align,
             width: width,
             height: height,
             border: border,
@@ -167,19 +170,101 @@ impl TextBase {
     // Does not consider the Height measurement
     pub fn as_str(&mut self, canvas: &Canvas) -> &str {
         if self.cached.is_some() {
+            // Return Cached value, nothing has changed
             self.cached.as_ref().unwrap()
         } else {
+            // recalculate Cached Value
             let width = self.width(canvas);
+            let height = self.height(canvas);
+            let line_count = self.text.split("\n").count();
+            let b_width = self.border_width();
+            let b_height = self.border_height();
+            let (extra_top_pad, extra_bot_pad) = self.get_align_gaps(height, b_height, line_count);
+            #[cfg(test)]
+            println!(
+                "extra_top_pad: {}, extra_bot_pad: {}",
+                extra_top_pad, extra_bot_pad
+            );
             let color = TextBase::color_string(&self.fg, &self.bg);
             let mut output = String::from(&color);
 
             self.top_border(width, &mut output);
-            let iter = self.top_padding(width, &mut output, &color);
-            let iter = self.lines(width, &mut output, &color, iter);
-            self.bottom_padding(width, &mut output, &color, iter);
+            let iter = self.top_padding(
+                width,
+                height,
+                extra_top_pad,
+                line_count,
+                &mut output,
+                &color,
+            );
+            let iter = self.lines(
+                width,
+                height,
+                extra_top_pad,
+                extra_bot_pad,
+                line_count,
+                &mut output,
+                &color,
+                iter,
+            );
+            self.bottom_padding(
+                width,
+                height,
+                extra_bot_pad,
+                line_count,
+                &mut output,
+                &color,
+                iter,
+            );
             self.bottom_border(width, &mut output, &color);
             self.cached = Some(output);
             self.cached.as_ref().unwrap()
+        }
+    }
+
+    fn get_align_gaps(&self, height: usize, bh: usize, lc: usize) -> (usize, usize) {
+        let extra = if height > (bh + lc) {
+            height - (bh + lc)
+        } else {
+            0
+        };
+
+        #[cfg(test)]
+        {
+            println!("get_align_gaps():");
+            println!("\tHeight: {height}");
+            println!("\tbh: {bh}");
+            println!("\tlc: {lc}");
+            println!("\tExtra: {}", extra);
+        }
+
+        match self.align {
+            Align::Top => (0, extra),
+            Align::Center => (
+                if extra % 2 == 0 {
+                    extra / 2
+                } else {
+                    extra / 2 + 1
+                },
+                extra / 2,
+            ),
+            Align::Bottom => (extra, 0),
+        }
+    }
+
+    fn border_width(&self) -> usize {
+        if let Some(b) = self.border.as_ref() {
+            b.width() + b.get_pad_right() + b.get_pad_left()
+        } else {
+            0
+        }
+    }
+
+    fn border_height(&self) -> usize {
+        if let Some(b) = self.border.as_ref() {
+            b.height() + b.get_pad_top() + b.get_pad_bottom()
+        } else {
+            0
         }
     }
 
@@ -202,7 +287,7 @@ impl TextBase {
         return output;
     }
 
-    fn get_justfy_gaps(&self, line_width: usize, total_width: usize) -> (usize, usize) {
+    fn get_justify_gaps(&self, line_width: usize, total_width: usize) -> (usize, usize) {
         let mut extra = total_width;
         if let Some(b) = self.border.as_ref() {
             extra -= line_width + b.get_pad_left() + b.get_pad_right() + b.width();
@@ -234,6 +319,18 @@ impl TextBase {
         }
     }
 
+    pub fn height(&self, canvas: &Canvas) -> usize {
+        if let Some(h) = self.height.as_ref() {
+            h.get(canvas.height)
+        } else {
+            if let Some(b) = self.border.as_ref() {
+                b.get_pad_top() + b.get_pad_bottom() + b.height() + self.text.split("\n").count()
+            } else {
+                self.text.split("\n").count()
+            }
+        }
+    }
+
     pub fn longest_line(&self) -> usize {
         if self.text.split("\n").count() < 2 {
             self.text.len()
@@ -259,7 +356,15 @@ impl TextBase {
         }
     }
 
-    fn top_padding(&self, width: usize, output: &mut String, prefix: &str) -> usize {
+    fn top_padding(
+        &self,
+        width: usize,
+        height: usize,
+        extra: usize,
+        line_count: usize,
+        output: &mut String,
+        prefix: &str,
+    ) -> usize {
         if let Some(b) = self.border.as_ref()
             && b.get_pad_top() > 0
         {
@@ -268,7 +373,7 @@ impl TextBase {
             for _ in 0..width - b.width() {
                 spacing.push(' ');
             }
-            for _ in 0..b.get_pad_top() {
+            for _ in 0..(b.get_pad_top() + extra) {
                 output.push_str(prefix);
 
                 if !b.is_left_none() {
@@ -289,14 +394,37 @@ impl TextBase {
         return 0;
     }
 
-    fn lines(&self, width: usize, output: &mut String, prefix: &str, mut iter: usize) -> usize {
-        for line in self.text.split("\n") {
+    fn lines(
+        &self,
+        width: usize,
+        height: usize,
+        extra_top_pad: usize,
+        extra_bot_pad: usize,
+        line_count: usize,
+        output: &mut String,
+        prefix: &str,
+        mut iter: usize,
+    ) -> usize {
+        for (i, mut line) in self.text.split("\n").enumerate() {
             output.push_str(prefix);
             if let Some(b) = self.border.as_ref() {
                 if let Some(c) = b.get_left(iter) {
                     output.push(c);
                 }
-                let (jl, jr) = self.get_justfy_gaps(line.len(), width);
+                if (if b.is_top_none() { 0 } else { 1 } + b.get_pad_top() + extra_top_pad + i + 1)
+                    == height
+                        - (b.get_pad_bottom()
+                            + extra_bot_pad
+                            + if b.is_bottom_none() { 0 } else { 1 })
+                    && i + 1 < line_count
+                {
+                    line = match line.len() {
+                        1 => ".",
+                        2 => "..",
+                        _ => "...",
+                    };
+                }
+                let (jl, jr) = self.get_justify_gaps(TextBase::string_width(line), width);
                 for _ in 0..(b.get_pad_left() + jl) {
                     output.push(' ');
                 }
@@ -313,18 +441,55 @@ impl TextBase {
                 }
                 output.push('\n');
                 iter += 1;
+                if (if b.is_top_none() { 0 } else { 1 } + b.get_pad_top() + extra_top_pad + i + 1)
+                    == height
+                        - (b.get_pad_bottom()
+                            + extra_bot_pad
+                            + if b.is_bottom_none() { 0 } else { 1 })
+                    && i + 1 < line_count
+                {
+                    break;
+                }
             }
         }
         iter
     }
 
-    fn bottom_padding(&self, width: usize, output: &mut String, prefix: &str, mut iter: usize) {
+    // trys to ignore ansi color codes
+    fn string_width(s: &str) -> usize {
+        let mut base = s.len();
+        let mut del = false;
+        for i in 0..base {
+            let c: char = s.chars().nth(i).unwrap();
+            if c == '\x1b' {
+                del = true;
+            } else if c == 'm' {
+                base -= 1;
+                del = false
+            }
+            if del {
+                base -= 1;
+            }
+        }
+        base
+    }
+
+    fn bottom_padding(
+        &self,
+        width: usize,
+        height: usize,
+        extra: usize,
+        line_count: usize,
+        output: &mut String,
+        prefix: &str,
+        mut iter: usize,
+    ) {
         if let Some(b) = self.border.as_ref() {
             let mut spacing = String::new();
             for _ in 0..width - b.width() {
                 spacing.push(' ');
             }
-            for _ in 0..b.get_pad_bottom() {
+            for _ in 0..(b.get_pad_bottom() + extra) {
                 output.push_str(prefix);
                 if let Some(c) = b.get_left(iter) {
                     output.push(c);
@@ -423,5 +588,91 @@ impl DynamicText {
         } else {
             false // no change
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+
+    use super::*;
+    use crate::engine::{
+        consts::DEFAULT_CANVAS,
+        ui::{BorderSprite, Padding},
+    };
+    use term::term_size;
+
+    #[test]
+    fn basetext_height_match() {
+        let mut canvas = DEFAULT_CANVAS;
+        if let Some(s) = term_size() {
+            canvas.height = s.1 as usize;
+            canvas.width = s.0 as usize;
+        }
+        let text = String::from("1111\n2222\n3333\n4444\n5555\n6666\n7777");
+
+        // Senerio One //
+        let target_height: usize = 40;
+
+        let mut tb: TextBase = TextBase::new(
+            text.clone(),
+            Justify::Left,
+            Align::Center,
+            None,
+            Some(Measure::Cell(target_height as u32)),
+            Some(Border::from(
+                BorderSprite::String("#@".to_string()),
+                Padding::square(2),
+            )),
+            None,
+            None,
+        );
+        let mut lines: Vec<String> = Vec::new();
+        for each in tb.as_str(&canvas).split("\n") {
+            lines.push(each.to_string())
+        }
+        assert_eq!(lines.len(), target_height);
+        println!("{}", tb.as_str(&canvas));
+
+        // Senario Two //
+        let target_height: usize = canvas.height / 2;
+
+        let mut tb: TextBase = TextBase::new(
+            text.clone(),
+            Justify::Left,
+            Align::Center,
+            None,
+            Some(Measure::Percent(50)),
+            Some(Border::from(
+                BorderSprite::String("#@".to_string()),
+                Padding::square(2),
+            )),
+            None,
+            None,
+        );
+        let (l, r) = tb.get_justify_gaps(1, 7);
+        println!("lpad: {}, rpad: {}", l, r);
+        println!("tb.width() = {} (expected: 7)", tb.width(&canvas));
+        let mut lines: Vec<String> = Vec::new();
+        for each in tb.as_str(&canvas).split("\n") {
+            lines.push(each.to_string());
+        }
+        println!("{}", tb.as_str(&canvas));
+        assert_eq!(lines.len(), target_height);
+    }
+
+    fn basetext_width_match() {}
+
+    #[test]
+    fn basetext_string_width() {
+        let text = String::from("Like");
+        assert_eq!(TextBase::string_width(&text), text.len());
+        let text = String::from("\x1b[0mLike");
+        assert_eq!(TextBase::string_width(&text), text.len() - 4);
+        let text = String::from("\x1b[0mLike\x1b[0m");
+        assert_eq!(TextBase::string_width(&text), text.len() - 8);
+        let text = String::from("hello there stuff like this\x1b[0mLike what and break up\x1bm");
+        assert_eq!(TextBase::string_width(&text), text.len() - 6);
+        let text = String::from("\x1b[0mLike\x1bm");
+        assert_eq!(TextBase::string_width(&text), text.len() - 6);
     }
 }

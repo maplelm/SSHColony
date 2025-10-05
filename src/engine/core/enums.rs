@@ -1,6 +1,6 @@
 use crate::engine::render::RenderUnitId;
 
-use super::super::super::render::{Layer, Object};
+use super::super::super::render::{Canvas, Layer, Object};
 use super::super::Error;
 use super::super::types::Position3D;
 use super::traits::Scene;
@@ -39,6 +39,26 @@ pub enum RenderSignal {
     Clear,
     Batch(Vec<RenderSignal>),
     Sequence(Vec<RenderSignal>),
+}
+
+impl RenderSignal {
+    // Marking as test as I don't want to be checking Signals like this for any reason other then
+    // testing
+    #[cfg(test)]
+    pub fn as_str(&mut self, canvas: &Canvas) -> Option<&str> {
+        match self {
+            RenderSignal::Insert(_, obj) => Some(obj.as_str(canvas)),
+            RenderSignal::Update(_, obj) => Some(obj.as_str(canvas)),
+            _ => None,
+        }
+    }
+}
+
+pub enum Intensity {
+    None,
+    Low,
+    Medium,
+    High,
 }
 
 ////////////////

@@ -34,7 +34,7 @@ pub fn render_thread(
     event_tx: mpsc::Sender<Event>,
 ) {
     let mut force_refresh: std::time::Instant = std::time::Instant::now();
-    let tick_rate: std::time::Duration = std::time::Duration::from_millis(500);
+    let tick_rate: std::time::Duration = std::time::Duration::from_millis(10);
     let mut bg_counter: usize = 1;
     let mut mg_counter: usize = 1;
     let mut fg_counter: usize = 1;
@@ -97,7 +97,7 @@ pub fn render_thread(
             &foreground_color,
             &background_color,
             &camera,
-            &mut dirty
+            &mut dirty,
         );
     }
 }
@@ -177,7 +177,7 @@ fn dispatch_msg(
             RenderUnitId::Foreground(_) => remove(key, fg),
             RenderUnitId::Ui(_) => remove(key, ui),
         },
-        RenderSignal::Clear => clear_msg(fg, mg, bg, ui,  dyn_list),
+        RenderSignal::Clear => clear_msg(fg, mg, bg, ui, dyn_list),
         RenderSignal::Redraw => {} // Used to mark display as dirty
         RenderSignal::Move(id, pos) => move_object(id, pos, fg, mg, bg, ui),
         RenderSignal::MoveLayer(id, layer) => move_layer(id, layer, fg, mg, bg, ui),
@@ -197,10 +197,10 @@ fn print(
     fg_color: &Foreground,
     bg_color: &Background,
     camera: &Camera,
-    dirty: &mut bool
+    dirty: &mut bool,
 ) {
-    if !*dirty{
-        return
+    if !*dirty {
+        return;
     }
     let print_sprite = |obj: &str,
                         is_colored: bool,
@@ -541,7 +541,13 @@ fn remove(key: Arc<RenderUnitId>, list: &mut Grid) {
     list.remove(key.load());
 }
 
-fn clear_msg(fg: &mut Grid, mg: &mut Grid, bg: &mut Grid, ui: &mut Grid, dynamics_list: &mut DynRefList) {
+fn clear_msg(
+    fg: &mut Grid,
+    mg: &mut Grid,
+    bg: &mut Grid,
+    ui: &mut Grid,
+    dynamics_list: &mut DynRefList,
+) {
     print!("\x1b[2J");
     fg.clear();
     mg.clear();

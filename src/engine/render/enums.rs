@@ -2,7 +2,7 @@ use super::{Canvas, drawable::*};
 use crate::engine::{
     traits::Storeable,
     types as enginetypes,
-    ui::style::{Justify, Measure},
+    ui::style::{Align, Justify, Measure},
 };
 use crate::engine::{types::Position3D, ui::Border};
 use serde::{Deserialize, Serialize};
@@ -164,6 +164,7 @@ impl Object {
         pos: Position3D<i32>,
         text: String,
         justify: Justify,
+        align: Align,
         width: Option<Measure>,
         height: Option<Measure>,
         border: Option<Border>,
@@ -172,7 +173,7 @@ impl Object {
     ) -> Self {
         Self::Static(Static::Text(StaticText {
             pos: pos,
-            base: TextBase::new(text, justify, width, height, border, fg, bg),
+            base: TextBase::new(text, justify, align, width, height, border, fg, bg),
         }))
     }
 
@@ -233,4 +234,3 @@ pub enum Layer {
     Foreground,
     Ui,
 }
-

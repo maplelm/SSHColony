@@ -3,12 +3,9 @@ use crate::engine::{
     enums::{RenderSignal, SceneSignal},
 };
 
-use super::super::{AudioMsg, Context, Error, input::Event, render::Canvas, types::Instance};
-use super::{
-    audio_thread::audio_thread, enums::Signal, event_thread::event_thread,
-    traits::Scene,
-};
 use super::super::render::render_thread;
+use super::super::{AudioMsg, Context, Error, input::Event, render::Canvas, types::Instance};
+use super::{audio_thread::audio_thread, enums::Signal, event_thread::event_thread, traits::Scene};
 use std::thread::{JoinHandle, spawn};
 use std::{
     io::{Read, stdin},

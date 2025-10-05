@@ -1,5 +1,3 @@
-#![deny(unused)]
-
 use term::color::{Background, Color, Foreground, Iso};
 
 use crate::{
@@ -8,8 +6,9 @@ use crate::{
         input::{Event, KeyEvent},
         render::Canvas,
         ui::{
-            Border, BorderSprite, Menu, MenuItem, Padding,
-            style::{Justify, Origin},
+            Border, BorderSprite, Menu, MenuItem, Padding, SelectionDirection, Selector,
+            SelectorItem,
+            style::{Align, Justify, Measure, Origin},
         },
     },
     game::{Game, LoadGame, Settings},
@@ -25,23 +24,57 @@ use std::sync::mpsc;
 
 pub struct MainMenu {
     menu: Menu<(), Signals>,
+    test_selector: Selector,
     init_complete: bool,
 }
 
 impl MainMenu {
     pub fn new() -> Game {
         Game::MainMenu(Self {
+            test_selector: Selector::new(
+                0,
+                30,
+                Some(Measure::Percent(50)),
+                Some(Measure::Cell(10)),
+                Some(Foreground::blue(false)),
+                None,
+                None,
+                None,
+                None,
+                None,
+                SelectionDirection::Vertical,
+                Some(Border::from(
+                    BorderSprite::String("#$".to_string()),
+                    Padding::square(2),
+                )),
+                vec![
+                    SelectorItem {
+                        label: "Low".to_string(),
+                        value: 0,
+                    },
+                    SelectorItem {
+                        label: "Medium".to_string(),
+                        value: 1,
+                    },
+                    SelectorItem {
+                        label: "High".to_string(),
+                        value: 2,
+                    },
+                ],
+            ),
             menu: Menu::new(
                 0,
-                1,
-                None, //Some(Measure::Cell(10)),
-                None, //Some(Measure::Cell(15)),
+                0,
+                Some(Measure::Percent(100)),
+                Some(Measure::Percent(50)),
                 Origin::TopLeft,
-                Justify::Left,
-                Some(Border::from(
-                    BorderSprite::String("|#".to_string()),
-                    Padding::square(2),
-                ).top(BorderSprite::String("-#".to_string())).bottom(BorderSprite::String("-#".to_string()))),
+                Justify::Center,
+                Align::Center,
+                Some(
+                    Border::from(BorderSprite::String("|#".to_string()), Padding::square(2))
+                        .top(BorderSprite::String("-#".to_string()))
+                        .bottom(BorderSprite::String("-#".to_string())),
+                ),
                 vec![
                     MenuItem {
                         label: String::from("Play"),
@@ -72,6 +105,7 @@ impl MainMenu {
         _canvas: &Canvas,
     ) -> Signal<Game> {
         self.menu.output(render_tx);
+        self.test_selector.output(render_tx);
         self.init_complete = true;
         if let Err(_e) = render_tx.send(RenderSignal::Redraw) {
             // Log that there was a problem
@@ -99,6 +133,10 @@ impl MainMenu {
                     }
                     KeyEvent::Char('e') => {}
                     KeyEvent::Char('B') => {}
+                    KeyEvent::Tab => {
+                        self.test_selector.next();
+                        self.test_selector.output(render_tx);
+                    }
                     KeyEvent::Up | KeyEvent::Char('w') => {
                         if self.menu.cursor_up(1) {
                             self.menu.output(render_tx);

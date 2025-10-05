@@ -1,7 +1,5 @@
-//#![deny(unused)]
-
-use crate::engine::enums::RenderSignal;
 use crate::engine::enums::Signal as EngineSignal;
+use crate::engine::enums::{Intensity, RenderSignal};
 use crate::engine::render::clear as render_clear;
 use crate::engine::ui::BorderSprite as Bsprite;
 use crate::engine::ui::MenuItem;
@@ -12,7 +10,7 @@ use crate::engine::{
     render::Canvas,
     ui::{
         Border, Menu, Padding,
-        style::{Justify, Measure, Origin},
+        style::{Align, Justify, Measure, Origin},
     },
 };
 use crate::game::Game;
@@ -25,7 +23,16 @@ enum Signal {
     NewWorld,
     LoadWorld(String),
     WorldData(World),
-    Back
+    Back,
+}
+
+struct NewWorldForm {
+    world_name: String,
+    seed: u64,
+    avg_temp: Intensity,
+    avg_height: Intensity,
+    height_delta: Intensity,
+    hard_core: bool,
 }
 
 pub struct LoadGame {
@@ -40,9 +47,10 @@ impl LoadGame {
                 0,
                 0,
                 Some(Measure::Percent(100)),
-                Some(Measure::Percent(100)),
+                Some(Measure::Percent(100)), //Some(Measure::Percent(100)),
                 Origin::TopLeft,
-                Justify::Left,
+                Justify::Center,
+                Align::Center,
                 Some(Border::from(
                     Bsprite::String("#%".to_string()),
                     Padding::square(2),
@@ -66,10 +74,11 @@ impl LoadGame {
         let save_path: &Path = Path::new(save_dir);
         let mut saves: Vec<DirEntry> = get_saves_list(save_path);
         add_load_files_to_menu(&mut self.menu, &saves);
+
         self.menu
             .add(MenuItem::new("New World".to_string(), new_world));
         self.menu
-            .add(MenuItem::new("Back".to_string(), |_| {Signal::Back}));
+            .add(MenuItem::new("Back".to_string(), |_| Signal::Back));
 
         self.menu.output(render_tx);
         EngineSignal::None
@@ -115,12 +124,12 @@ impl LoadGame {
                             self.menu.output(render_tx)
                         }
                     }
-                    KeyEvent::Char('d') => {
-                        match self.menu.execute(None) {
-                            Signal::Back => batch.push(EngineSignal::Scenes(crate::engine::enums::SceneSignal::Pop)),
-                            _ => {}
+                    KeyEvent::Char('d') => match self.menu.execute(None) {
+                        Signal::Back => {
+                            batch.push(EngineSignal::Scenes(crate::engine::enums::SceneSignal::Pop))
                         }
-                    }
+                        _ => {}
+                    },
                     _ => {}
                 },
                 _ => {}
@@ -228,4 +237,3 @@ fn check_file_extention(item: &DirEntry) -> bool {
         None => false,
     }
 }
-
