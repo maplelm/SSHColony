@@ -173,53 +173,40 @@ impl TextBase {
             // Return Cached value, nothing has changed
             self.cached.as_ref().unwrap()
         } else {
-            // recalculate Cached Value
-            let width = self.width(canvas);
-            let height = self.height(canvas);
-            let line_count = self.text.split("\n").count();
-            let b_width = self.border_width();
-            let b_height = self.border_height();
-            let (extra_top_pad, extra_bot_pad) = self.get_align_gaps(height, b_height, line_count);
-            #[cfg(test)]
-            println!(
-                "extra_top_pad: {}, extra_bot_pad: {}",
-                extra_top_pad, extra_bot_pad
-            );
-            let color = TextBase::color_string(&self.fg, &self.bg);
-            let mut output = String::from(&color);
-
-            self.top_border(width, &mut output);
-            let iter = self.top_padding(
-                width,
-                height,
-                extra_top_pad,
-                line_count,
-                &mut output,
-                &color,
-            );
-            let iter = self.lines(
-                width,
-                height,
-                extra_top_pad,
-                extra_bot_pad,
-                line_count,
-                &mut output,
-                &color,
-                iter,
-            );
-            self.bottom_padding(
-                width,
-                height,
-                extra_bot_pad,
-                line_count,
-                &mut output,
-                &color,
-                iter,
-            );
-            self.bottom_border(width, &mut output, &color);
-            self.cached = Some(output);
-            self.cached.as_ref().unwrap()
+            self.generate_str_cache(canvas);
+            self.cached.as_ref().unwrap().as_str()
         }
+    }
+
+    fn generate_str_cache(&mut self, canvas: &Canvas) {
+        let w = self.width(canvas);
+        let h = self.height(canvas);
+        let lc = self.get_line_count(canvas);
+        let bw = self.border_width();
+        let bh = self.border_height();
+        let (top_extra, bot_extra) = self.get_align_gaps(h, bh, lc);
+        let color = TextBase::color_string(&self.fg, &self.bg);
+        let mut output = String::from(&color);
+        self.top_border(w, &mut output);
+        let i = self.top_padding(w, h, top_extra, lc, &mut output, &color);
+        let i = self.lines(w, h, top_extra, bot_extra, lc, &mut output, &color, i);
+        self.bottom_padding(w, h, bot_extra, lc, &mut output, &color, i);
+        self.bottom_border(w, &mut output, &color);
+        self.cached = Some(output);
+    }
+
+    fn get_line_count(&self, canvas: &Canvas) -> usize {
+        let mut size = self.text.split("\n").count();
+        if self.height.is_none() {
+            return size;
+        }
+        let h = self.height.unwrap().get(canvas.height);
+        if self.border.is_none() {
+            return if size > h { h } else { size };
+        }
+        let b = self.border.as_ref().unwrap();
+        let b = b.get_pad_top() + b.get_pad_bottom() + b.height();
+        return if size > h - b { h - b } else { size };
     }
 
     fn get_align_gaps(&self, height: usize, bh: usize, lc: usize) -> (usize, usize) {
@@ -457,21 +444,19 @@ impl TextBase {
 
     // trys to ignore ansi color codes
     fn string_width(s: &str) -> usize {
-        let mut base = s.len();
-        let mut del = false;
-        for i in 0..base {
-            let c: char = s.chars().nth(i).unwrap();
+        //let mut base = s.len();
+        let mut count: usize = 0;
+        let mut add = true;
+        for c in s.chars() {
             if c == '\x1b' {
-                del = true;
-            } else if c == 'm' {
-                base -= 1;
-                del = false
-            }
-            if del {
-                base -= 1;
+                add = false;
+            } else if c == 'm' && !add {
+                add = true;
+            } else if add {
+                count += 1;
             }
         }
-        base
+        count
     }
 
     fn bottom_padding(
@@ -674,5 +659,7 @@ mod test {
         assert_eq!(TextBase::string_width(&text), text.len() - 6);
         let text = String::from("\x1b[0mLike\x1bm");
         assert_eq!(TextBase::string_width(&text), text.len() - 6);
+        let text = String::from("\x1b[0mMedium\x1b[0m");
+        assert_eq!(TextBase::string_width(&text), text.len() - 8);
     }
 }

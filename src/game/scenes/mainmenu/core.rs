@@ -42,14 +42,14 @@ impl MainMenu {
                 None,
                 None,
                 None,
-                SelectionDirection::Vertical,
+                SelectionDirection::Horizontal,
                 Some(Border::from(
                     BorderSprite::String("#$".to_string()),
                     Padding::square(2),
                 )),
                 vec![
                     SelectorItem {
-                        label: "Low".to_string(),
+                        label: "Lowesm".to_string(),
                         value: 0,
                     },
                     SelectorItem {
@@ -57,7 +57,15 @@ impl MainMenu {
                         value: 1,
                     },
                     SelectorItem {
-                        label: "High".to_string(),
+                        label: "Medium".to_string(),
+                        value: 1,
+                    },
+                    SelectorItem {
+                        label: "Medium".to_string(),
+                        value: 1,
+                    },
+                    SelectorItem {
+                        label: "Highs".to_string(),
                         value: 2,
                     },
                 ],

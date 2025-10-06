@@ -1,4 +1,5 @@
 mod border;
+mod button;
 mod core;
 mod menu;
 mod selector;
@@ -10,6 +11,7 @@ pub use border::Border;
 pub use border::BorderSprite;
 pub use border::Padding;
 
+pub use button::Button;
 pub use menu::Item as MenuItem;
 pub use menu::Menu;
 pub use selector::SelectionDirection;

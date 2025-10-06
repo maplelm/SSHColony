@@ -3,6 +3,7 @@
 use super::super::border::Border;
 use super::types::*;
 use serde::{Deserialize, Serialize};
+use term::color::{Background, Foreground};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Style {
@@ -10,8 +11,32 @@ pub struct Style {
     pub border: Option<Border>,
     pub justify: Justify,
     pub align: Align,
-    pub foreground: Option<term::color::Foreground>,
-    pub background: Option<term::color::Background>,
+    pub foreground: Option<Foreground>,
+    pub background: Option<Background>,
+}
+
+impl Style {
+    pub fn from(
+        width: Option<Measure>,
+        height: Option<Measure>,
+        border: Option<Border>,
+        justify: Justify,
+        align: Align,
+        fg: Option<Foreground>,
+        bg: Option<Background>,
+    ) -> Self {
+        Self {
+            size: Size {
+                width: width,
+                height: height,
+            },
+            border: border,
+            justify: justify,
+            align: align,
+            foreground: fg,
+            background: bg,
+        }
+    }
 }
 
 impl Default for Style {

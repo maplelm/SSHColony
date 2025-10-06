@@ -1,2 +1,2 @@
-mod mainmenu;
-pub use mainmenu::*;
+mod core;
+pub use core::*;
