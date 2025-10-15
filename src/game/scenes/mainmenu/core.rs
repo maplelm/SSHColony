@@ -7,8 +7,8 @@ use crate::{
         render::Canvas,
         ui::{
             Border, BorderSprite, Menu, MenuItem, Padding, SelectionDirection, Selector,
-            SelectorItem,
-            style::{Align, Justify, Measure, Origin},
+            SelectorItem, Textbox,
+            style::{Align, Justify, Measure, Origin, Style},
         },
     },
     game::{Game, LoadGame, Settings},
@@ -25,6 +25,8 @@ use std::sync::mpsc;
 pub struct MainMenu {
     menu: Menu<(), Signals>,
     test_selector: Selector,
+    test_textbox: Textbox,
+    selected: u32,
     init_complete: bool,
 }
 
@@ -33,8 +35,8 @@ impl MainMenu {
         Game::MainMenu(Self {
             test_selector: Selector::new(
                 0,
-                30,
-                Some(Measure::Percent(50)),
+                10,
+                Some(Measure::Percent(100)),
                 Some(Measure::Cell(10)),
                 Some(Foreground::blue(false)),
                 None,
@@ -42,7 +44,7 @@ impl MainMenu {
                 None,
                 None,
                 None,
-                SelectionDirection::Horizontal,
+                SelectionDirection::Vertical,
                 Some(Border::from(
                     BorderSprite::String("#$".to_string()),
                     Padding::square(2),
@@ -74,7 +76,7 @@ impl MainMenu {
                 0,
                 0,
                 Some(Measure::Percent(100)),
-                Some(Measure::Percent(50)),
+                Some(Measure::Cell(10)),
                 Origin::TopLeft,
                 Justify::Center,
                 Align::Center,
@@ -103,7 +105,9 @@ impl MainMenu {
                 })),
                 Some(Background::new(Color::None)),
             ),
+            test_textbox: Textbox::new(0, 20, Measure::Percent(75), '^', Some(Style::from(Some(Measure::Percent(100)), Some(Measure::Cell(5)), Some(Border::from(BorderSprite::String("#".to_string()), Padding::square(0))), Justify::Left, Align::Center, Some(Foreground::white(false)), Some(Background::black(false)))), None),
             init_complete: false,
+            selected: 0,
         })
     }
 
@@ -114,6 +118,7 @@ impl MainMenu {
     ) -> Signal<Game> {
         self.menu.output(render_tx);
         self.test_selector.output(render_tx);
+        self.test_textbox.output(render_tx);
         self.init_complete = true;
         if let Err(_e) = render_tx.send(RenderSignal::Redraw) {
             // Log that there was a problem
@@ -135,41 +140,59 @@ impl MainMenu {
         let mut signals: Vec<Signal<Game>> = vec![];
         for e in event.try_iter() {
             match e {
-                Event::Keyboard(e) => match e {
-                    KeyEvent::Char('q') => {
-                        return Signal::Quit;
-                    }
-                    KeyEvent::Char('e') => {}
-                    KeyEvent::Char('B') => {}
-                    KeyEvent::Tab => {
-                        self.test_selector.next();
-                        self.test_selector.output(render_tx);
-                    }
-                    KeyEvent::Up | KeyEvent::Char('w') => {
-                        if self.menu.cursor_up(1) {
-                            self.menu.output(render_tx);
+                Event::Keyboard(e) => {
+                    match e {
+                        KeyEvent::Char('q') => {
+                            return Signal::Quit;
                         }
+                        KeyEvent::Tab => {
+                            self.selected = (self.selected + 1) % 3;
+                        }
+                        _ => {}
                     }
-                    KeyEvent::Down | KeyEvent::Char('s') => {
-                        if self.menu.cursor_down(1) {
-                            self.menu.output(render_tx);
+                    if self.selected == 0 {
+                        match e {
+                            KeyEvent::Up | KeyEvent::Char('w') => {
+                                if self.menu.cursor_up(1) {
+                                    self.menu.output(render_tx);
+                                }
+                            }
+                            KeyEvent::Down | KeyEvent::Char('s') => {
+                                if self.menu.cursor_down(1) {
+                                    self.menu.output(render_tx);
+                                }
+                            }
+                            KeyEvent::Right | KeyEvent::Char('d') => match self.menu.execute(()) {
+                                Signals::Quit => {
+                                    signals.push(Signal::Quit);
+                                }
+                                Signals::NewScene(s) => {
+                                    signals.push(Signal::Scenes(SceneSignal::New(s)));
+                                }
+                                Signals::None => {()}
+                            },
+                            _ => {}
                         }
+                    } else if self.selected == 1 {
+                        match e {
+                            KeyEvent::Char('d') | KeyEvent::Char('A') | KeyEvent::Right => {
+                                self.test_selector.next();
+                                self.test_selector.output(render_tx);
+                            }
+                            KeyEvent::Char('a') | KeyEvent::Char('D') | KeyEvent::Left => {
+                                self.test_selector.prev();
+                                self.test_selector.output(render_tx);
+                            }
+                            _ => {}
+                        }
+                    } else if self.selected == 2 {
+                        self.test_textbox.process_key(e, render_tx, _canvas);
                     }
-                    KeyEvent::Right | KeyEvent::Char('d') => match self.menu.execute(()) {
-                        Signals::Quit => {
-                            signals.push(Signal::Quit);
-                        }
-                        Signals::NewScene(s) => {
-                            signals.push(Signal::Scenes(SceneSignal::New(s)));
-                        }
-                        Signals::None => {}
-                    },
-                    KeyEvent::Char('c') => {}
-                    _ => {}
-                },
+                }
                 _ => {}
             }
         }
+
         if signals.len() > 0 {
             return Signal::Batch(signals);
         } else {
@@ -185,6 +208,8 @@ impl MainMenu {
             // Log that there is a problem
         }
         self.menu.output(render_tx);
+        self.test_selector.output(render_tx);
+        self.test_textbox.output(render_tx);
     }
     #[allow(unused)]
     pub fn suspend(&mut self, render_tx: &mpsc::Sender<RenderSignal>) {

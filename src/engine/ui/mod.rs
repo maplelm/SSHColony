@@ -4,6 +4,7 @@ mod core;
 mod menu;
 mod selector;
 pub mod style;
+mod textbox;
 
 pub use core::*;
 
@@ -17,3 +18,4 @@ pub use menu::Menu;
 pub use selector::SelectionDirection;
 pub use selector::Selector;
 pub use selector::SelectorItem;
+pub use textbox::Textbox;

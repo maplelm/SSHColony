@@ -13,6 +13,7 @@ use std::sync::mpsc::{Receiver, Sender};
 
 pub enum Game {
     MainMenu(MainMenu),
+    #[allow(dead_code)]
     GenerateWorld(GenerateWorld),
     Settings(Settings),
     InGame(InGame),
@@ -62,7 +63,7 @@ impl Scene<Game> for Game {
             Game::Settings(s) => s.resume(canvas),
             Game::InGame(s) => s.resume(canvas),
             Game::LoadGame(s) => s.resume(render_tx, canvas),
-            Game::GenerateWorld(s) => s.resume(redner_tx, canvas),
+            Game::GenerateWorld(s) => s.resume(render_tx, canvas),
         }
     }
     fn suspend(&mut self, render_tx: &Sender<RenderSignal>) {

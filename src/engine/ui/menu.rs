@@ -164,12 +164,6 @@ impl<I, O> Menu<I, O> {
                 out.push('\n');
             }
         }
-        if let Some(id) = self.render_id.upgrade() {
-            if id.load() == 0 {
-                // Render had not gotten to initialize this object, skip for now?
-            }
-        } else {
-        }
         match self.render_id.upgrade() {
             None => {
                 let arc_id = RenderUnitId::new(Layer::Ui);

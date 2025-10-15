@@ -16,6 +16,7 @@ pub struct Style {
 }
 
 impl Style {
+    #[allow(unused)]
     pub fn from(
         width: Option<Measure>,
         height: Option<Measure>,

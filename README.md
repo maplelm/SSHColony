@@ -6,6 +6,8 @@ SSH Colony is ment to be a colony simulation game a lot like Dwarf fortress
 with the twist of the worlds being much more hostile and I want to put the
 enphisis on combat and survival more so then casual building and story telling.
 
+---
+
 # Todos
 
 - [ ] Implement enable/disable feature for menus
@@ -22,6 +24,8 @@ enphisis on combat and survival more so then casual building and story telling.
     - This doesn't work well for ui and I don't see how I can more cleanly link the rest of my program to the renderer
     - I don't really want to have to manually move al of the ui evertime I want to camera to move to a different spot in the map.
 - [ ] On the rendering side implement dangling object clean up. if an arc `RenderUnitId` has no weak refs it has not connection to the update thread
+- [ ] Textbox with no padding has a wierd one row of bottom padding
+- [ ] Border gets pushed out on text box selection but then you can delete until the border comes back to where it should be
 
 
 ## Implementations
@@ -36,6 +40,16 @@ enphisis on combat and survival more so then casual building and story telling.
 - ASCII graphics
 - Playable over SSH
 - Written in almost raw rust
+
+## Rendering
+
+Any object in the game that can be rendered needs to have a `Weak` reference
+counter to a `RenderUnitId` object so that when it tells the renderer to start
+drawing the object it can hold a reference to that objects id and can tell the
+renderer how the object needs to be visually manipulated. when sending things
+to the render to be processed you only need to send the raw text and some style
+information. the render will apply border, justification and more after it gets
+the object from the update thread.
 
 # Game Play Specifications
 

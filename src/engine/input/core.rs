@@ -98,7 +98,7 @@ pub fn poll_event(mut seq: &[u8]) -> Option<Event> {
         }
         b"\n" => Some(Event::Keyboard(KeyEvent::Enter)),
         b"\x1b" => Some(Event::Keyboard(KeyEvent::Escape)),
-        [0x08] => Some(Event::Keyboard(KeyEvent::Backspace)),
+        [8] | [127] => Some(Event::Keyboard(KeyEvent::Backspace)),
         b"\t" => Some(Event::Keyboard(KeyEvent::Tab)),
         seq if seq.starts_with(b"\x1b[M") || seq.starts_with(b"\x1b[<") => {
             Some(Event::Mouse(parse_mouse_event(seq)?))
