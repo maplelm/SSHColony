@@ -233,7 +233,7 @@ impl Border {
         match &self.top {
             BorderSprite::None => None,
             BorderSprite::Char(c) => Some(*c),
-            BorderSprite::String(s) => s.chars().nth(iter % s.len()),
+            BorderSprite::String(s) => s.chars().nth(iter % s.chars().count()),
         }
     }
 
@@ -241,7 +241,7 @@ impl Border {
         match &self.bottom {
             BorderSprite::None => None,
             BorderSprite::Char(c) => Some(*c),
-            BorderSprite::String(s) => s.chars().nth(iter % s.len()),
+            BorderSprite::String(s) => s.chars().nth(iter % s.chars().count()),
         }
     }
 
@@ -249,7 +249,7 @@ impl Border {
         match &self.left {
             BorderSprite::None => None,
             BorderSprite::Char(c) => Some(*c),
-            BorderSprite::String(s) => s.chars().nth(iter % s.len()),
+            BorderSprite::String(s) => s.chars().nth(iter % s.chars().count()),
         }
     }
 
@@ -257,7 +257,7 @@ impl Border {
         match &self.right {
             BorderSprite::None => None,
             BorderSprite::Char(c) => Some(*c),
-            BorderSprite::String(s) => s.chars().nth(iter % s.len())
+            BorderSprite::String(s) => s.chars().nth(iter % s.chars().count())
         }
     }
 }

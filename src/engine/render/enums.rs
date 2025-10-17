@@ -53,6 +53,19 @@ impl Object {
         }
     }
 
+    pub fn line_count(&self, canvas: &Canvas) -> Option<usize> {
+        match self {
+            Self::Static(s) => match s {
+                Static::Sprite(_) => None,
+                Static::Text(t) => Some(t.line_count(canvas)),
+            },
+            Self::Dynamic(d) => match d {
+                Dynamic::Sprite(_) => None,
+                Dynamic::Text(t) => Some(t.line_count(canvas)),
+            },
+        }
+    }
+
     pub fn has_color(&self) -> bool {
         match self {
             Self::Static(s) => match s {

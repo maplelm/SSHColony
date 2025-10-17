@@ -11,7 +11,6 @@ use std::sync::{Arc, Weak, mpsc::Sender};
 pub struct Textbox {
     pub render_id: Weak<RenderUnitId>,
     position: Position<i32>,
-    w: Measure,
     marker: char,
     style: Style,
     origin: Origin,
@@ -24,7 +23,6 @@ impl Textbox {
     pub fn new(
         x: i32,
         y: i32,
-        w: Measure,
         marker: char,
         style: Option<Style>,
         placeholder: Option<String>,
@@ -32,7 +30,6 @@ impl Textbox {
         Self {
             render_id: Weak::new(),
             position: Position { x: x, y: y },
-            w: w,
             marker: marker,
             style: if let Some(s) = style {
                 s
@@ -49,13 +46,13 @@ impl Textbox {
     pub fn max_len_value(&self, canvas: &Canvas) -> usize  {
         if let Some(w) = self.style.size.width {
             if let Some(b) = self.style.border.as_ref() {
-                w.get(canvas.width) as usize - (self.style.border.as_ref().unwrap().width() + self.style.border.as_ref().unwrap().get_pad_left() + self.style.border.as_ref().unwrap().get_pad_right()) as usize
+                w.get(canvas.width) as usize - (self.style.border.as_ref().unwrap().width() + self.style.border.as_ref().unwrap().get_pad_left() + self.style.border.as_ref().unwrap().get_pad_right() + 1) as usize
             } else {
-                w.get(canvas.width) as usize
+                w.get(canvas.width) as usize - 1
             }
         } 
         else {
-            canvas.width - self.position.x as usize
+            canvas.width - (self.position.x as usize + 1)
         }
     }
 
@@ -101,6 +98,7 @@ impl Textbox {
 
     pub fn output(&mut self, render_tx: &Sender<RenderSignal>) {
         let mut out = self.value.clone();
+        out.push(self.marker);
         match self.render_id.upgrade() {
             None => {
                 let arc_id = RenderUnitId::new(Layer::Ui);
@@ -109,7 +107,7 @@ impl Textbox {
                     arc_id,
                     Object::static_text(
                         self.position.as_3d(0),
-                        self.value.clone(),
+                        out,
                         self.style.justify,
                         self.style.align,
                         self.style.size.width,
@@ -125,7 +123,7 @@ impl Textbox {
                     arc,
                     Object::static_text(
                         self.position.as_3d(0),
-                        self.value.clone(),
+                        out,
                         self.style.justify,
                         self.style.align,
                         self.style.size.width,

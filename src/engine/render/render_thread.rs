@@ -1,6 +1,7 @@
 #![deny(unused)]
 
 use crate::engine::render::Camera;
+use std::io::Write;
 
 #[cfg(not(test))]
 use super::super::ui::style::{CLEAR_COLORS, CURSOR_HOME};
@@ -706,83 +707,3 @@ fn update_object(
         }
     }
 }
-
-/*
-#[cfg(test)]
-mod test {
-
-    use super::*;
-    use crate::engine::ui::style::Measure;
-    use crate::engine::ui::{
-        Border, BorderSprite, Menu, MenuItem, Padding,
-        style::{Justify, Origin},
-    };
-
-    #[test]
-    fn test_insert_text_to_grid() {
-        let c = Canvas::new(25, 10);
-
-        // Setting up Menu Object
-        let mut m = Menu::<(), ()>::new(
-            0,
-            0,
-            Some(Measure::Cell(25)),
-            Some(Measure::Cell(10)),
-            Origin::TopLeft,
-            Justify::Left,
-            Some(Border::from(
-                BorderSprite::String("#=:".to_string()),
-                Padding::square(2),
-            )),
-            vec![
-                MenuItem::new("Item One".to_string(), |_| None),
-                MenuItem::new("Item Two".to_string(), |_| None),
-                MenuItem::new("Item Three".to_string(), |_| None),
-            ],
-        );
-        // Setting up Grid Object
-        let mut grid: Grid = vec![];
-        grid.resize(c.width * c.height, None);
-
-        insert_text_msg(
-            Position { x: m.x(), y: m.y() },
-            match m.output(&c) {
-                Some(out) => out,
-                None => "".to_string(),
-            },
-            &c,
-            &mut grid,
-        );
-
-        println!(
-            "Raw Menu Output:\n{}",
-            match m.output(&c) {
-                Some(out) => out,
-                None => "".to_string(),
-            }
-        );
-        let fg = Foreground::new(Color::None);
-        let bg = Background::new(Color::None);
-        let mut b = true;
-        println!("Grid Output:\r");
-        print(&grid, &c, &fg, &bg, &mut b);
-        for (i, ch) in match m.output(&c) {
-            Some(out) => out,
-            None => "".to_string(),
-        }
-        .replace("\n", "")
-        .chars()
-        .enumerate()
-        {
-            let x: usize = (i % c.width) + 1;
-            let y: usize = (i / c.width) + 1;
-            let grid_c: char = if let Some(c) = &grid[i] {
-                c.borrow().sprite().symbol()
-            } else {
-                ' '
-            };
-            assert_eq!(grid_c, ch, "{x},{y}")
-        }
-    }
-}
-*/

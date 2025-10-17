@@ -6,6 +6,7 @@ use crate::engine::ui::style::{Align, Justify};
 use crate::engine::ui::{Border, style::Measure};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
+use std::io::Write;
 use std::time::{Duration, Instant};
 use term::color::{Background, Foreground};
 
@@ -195,7 +196,7 @@ impl TextBase {
         self.cached = Some(output);
     }
 
-    fn get_line_count(&self, canvas: &Canvas) -> usize {
+    pub fn get_line_count(&self, canvas: &Canvas) -> usize {
         let mut size = self.text.split("\n").count();
         if self.height.is_none() {
             return size;
@@ -215,7 +216,6 @@ impl TextBase {
         } else {
             0
         };
-
         #[cfg(test)]
         {
             println!("get_align_gaps():");
@@ -228,10 +228,12 @@ impl TextBase {
         match self.align {
             Align::Top => (0, extra),
             Align::Center => (
-                if extra % 2 == 0 {
+                if extra <= 3 {
                     extra / 2
-                } else {
+                } else if extra % 2 == 1 {
                     extra / 2 + 1
+                } else {
+                    extra / 2
                 },
                 extra / 2,
             ),
@@ -337,7 +339,10 @@ impl TextBase {
             && !b.is_top_none()
         {
             for i in 0..width {
-                output.push(b.get_top(i).unwrap());
+                output.push(
+                    b.get_top(i)
+                        .unwrap_or(crate::engine::ui::style::LIGHT_BLOCK),
+                );
             }
             output.push('\n');
         }
@@ -494,7 +499,10 @@ impl TextBase {
         {
             output.push_str(prefix);
             for i in 0..width {
-                output.push(b.get_bottom(i).unwrap());
+                output.push(
+                    b.get_bottom(i)
+                        .unwrap_or(crate::engine::ui::style::LIGHT_BLOCK),
+                );
             }
         }
     }
@@ -540,6 +548,10 @@ impl StaticText {
     pub fn as_str(&mut self, canvas: &Canvas) -> &str {
         self.base.as_str(canvas)
     }
+
+    pub fn line_count(&self, canvas: &Canvas) -> usize {
+        self.base.get_line_count(canvas)
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -563,6 +575,10 @@ impl DynamicText {
 
     pub fn as_str(&mut self, canvas: &Canvas) -> &str {
         self.text_sheet[self.cursor].as_str(canvas)
+    }
+
+    pub fn line_count(&self, canvas: &Canvas) -> usize {
+        self.text_sheet[self.cursor].get_line_count(canvas)
     }
 
     pub fn update(&mut self) -> bool {
