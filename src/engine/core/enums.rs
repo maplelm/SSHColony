@@ -54,13 +54,6 @@ impl RenderSignal {
     }
 }
 
-pub enum Intensity {
-    None,
-    Low,
-    Medium,
-    High,
-}
-
 ////////////////
 ///  Macros  ///
 ////////////////
