@@ -1,3 +1,6 @@
+use chrono::Local;
+use std::io::Write;
+
 use super::consts::*;
 
 pub type InputBuffer = [u8; MAX_INPUT_LEN];
@@ -64,18 +67,6 @@ pub enum Modifier {
 }
 
 pub fn poll_event(mut seq: &[u8]) -> Option<Event> {
-    if seq[0] == b'\x1b' {
-        let mut c = 0;
-        for each in seq {
-            c += 1;
-            if *each == b'\0' {
-                seq = &seq[0..c];
-                break;
-            }
-        }
-    } else {
-        seq = &seq[0..1];
-    }
     match seq {
         b"\x1b[A" => Some(Event::Keyboard(KeyEvent::Up)),
         b"\x1b[B" => Some(Event::Keyboard(KeyEvent::Down)),
@@ -274,4 +265,3 @@ impl std::fmt::Debug for Event {
 }
 #[cfg(windows)]
 pub mod windows {}
-
