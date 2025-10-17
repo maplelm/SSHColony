@@ -6,9 +6,16 @@ edition = "2024"
 [workspace.metadata.rust-analyzer.diagnostics]
 disabled = ["unlinked"]
 
+[profile.release]
+panic = "abort"
+
+[profile.dev]
+panic = "abort"
+
 [dependencies]
 libc = "0.2"
 serde = { version = "1.0.224", features = ["derive"] }
 ron = "0.11.0"
 bincode = { version = "2.0.1", features = ["serde"] }
 term = { path="/home/maplelm/Developer/crates/term" }
+chrono = "0.4.42"
