@@ -1,5 +1,5 @@
+use crate::engine::enums::RenderSignal;
 use crate::engine::enums::Signal as EngineSignal;
-use crate::engine::enums::{Intensity, RenderSignal};
 use crate::engine::render::clear as render_clear;
 use crate::engine::ui::BorderSprite as Bsprite;
 use crate::engine::ui::MenuItem;
@@ -24,6 +24,13 @@ enum Signal {
     LoadWorld(String),
     WorldData(World),
     Back,
+}
+
+enum Intensity {
+    Low,
+    Medium,
+    High,
+    Critical,
 }
 
 struct NewWorldForm {

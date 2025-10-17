@@ -105,7 +105,7 @@ impl MainMenu {
                 })),
                 Some(Background::new(Color::None)),
             ),
-            test_textbox: Textbox::new(0, 20, Measure::Percent(75), '^', Some(Style::from(Some(Measure::Percent(100)), Some(Measure::Cell(5)), Some(Border::from(BorderSprite::String("#".to_string()), Padding::square(0))), Justify::Left, Align::Center, Some(Foreground::white(false)), Some(Background::black(false)))), None),
+            test_textbox: Textbox::new(0, 20, '\u{2592}' , Some(Style::from(Some(Measure::Percent(100)), Some(Measure::Cell(5)), Some(Border::from(BorderSprite::String("\u{2588}".to_string()), Padding::square(0))), Justify::Left, Align::Center, Some(Foreground::white(false)), Some(Background::black(false)))), None),
             init_complete: false,
             selected: 0,
         })
