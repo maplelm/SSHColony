@@ -1,5 +1,21 @@
-use term::color::{Background, Color, Foreground, Iso};
+/*
+Copyright 2025 Luke Maple
 
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+you may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+use term::color::{Background, Color, Foreground, Iso};
+use std::sync::mpsc;
 use crate::{
     engine::{
         enums::{RenderSignal, SceneSignal, Signal},
@@ -13,6 +29,7 @@ use crate::{
     },
     game::{Game, LoadGame, Settings},
 };
+
 #[allow(unused)]
 enum Signals {
     None,
@@ -20,63 +37,20 @@ enum Signals {
     NewScene(Game),
 }
 
-use std::sync::mpsc;
 
 pub struct MainMenu {
     menu: Menu<(), Signals>,
-    test_selector: Selector,
-    test_textbox: Textbox,
-    selected: u32,
     init_complete: bool,
 }
 
 impl MainMenu {
     pub fn new() -> Game {
         Game::MainMenu(Self {
-            test_selector: Selector::new(
-                0,
-                10,
-                Some(Measure::Percent(100)),
-                Some(Measure::Cell(10)),
-                Some(Foreground::blue(false)),
-                None,
-                None,
-                None,
-                None,
-                None,
-                SelectionDirection::Horizontal,
-                Some(Border::from(
-                    BorderSprite::String("#$".to_string()),
-                    Padding::square(2),
-                )),
-                vec![
-                    SelectorItem {
-                        label: "Lowesm".to_string(),
-                        value: 0,
-                    },
-                    SelectorItem {
-                        label: "Medium".to_string(),
-                        value: 1,
-                    },
-                    SelectorItem {
-                        label: "Medium".to_string(),
-                        value: 1,
-                    },
-                    SelectorItem {
-                        label: "Medium".to_string(),
-                        value: 1,
-                    },
-                    SelectorItem {
-                        label: "Highs".to_string(),
-                        value: 2,
-                    },
-                ],
-            ),
             menu: Menu::new(
                 0,
                 0,
                 Some(Measure::Percent(100)),
-                Some(Measure::Cell(10)),
+                Some(Measure::Percent(100)),
                 Origin::TopLeft,
                 Justify::Center,
                 Align::Center,
@@ -100,31 +74,15 @@ impl MainMenu {
                     },
                 ],
                 Some(Foreground::new(Color::Iso {
-                    color: Iso::Blue,
-                    bright: true,
+                    color: Iso::Green,
+                    bright: false,
                 })),
-                Some(Background::new(Color::None)),
-            ),
-            test_textbox: Textbox::new(
-                0,
-                20,
-                '\u{2592}',
-                Some(Style::from(
-                    Some(Measure::Percent(100)),
-                    None,
-                    Some(Border::from(
-                        BorderSprite::String("\u{2588}".to_string()),
-                        Padding::square(0),
-                    )),
-                    Justify::Left,
-                    Align::Center,
-                    Some(Foreground::white(false)),
-                    Some(Background::black(false)),
-                )),
-                None,
+                Some(Background::new(Color::Iso {
+                    color: Iso::Black,
+                    bright: false,
+                })),
             ),
             init_complete: false,
-            selected: 0,
         })
     }
 
@@ -134,8 +92,6 @@ impl MainMenu {
         _canvas: &Canvas,
     ) -> Signal<Game> {
         self.menu.output(render_tx);
-        self.test_selector.output(render_tx);
-        self.test_textbox.output(render_tx);
         self.init_complete = true;
         if let Err(_e) = render_tx.send(RenderSignal::Redraw) {
             // Log that there was a problem
@@ -157,55 +113,31 @@ impl MainMenu {
         let mut signals: Vec<Signal<Game>> = vec![];
         for e in event.try_iter() {
             match e {
-                Event::Keyboard(e) => {
-                    match e {
-                        KeyEvent::Char('q') => {
-                            return Signal::Quit;
-                        }
-                        KeyEvent::Tab => {
-                            self.selected = (self.selected + 1) % 3;
-                        }
-                        _ => {}
+                Event::Keyboard(e) => match e {
+                    KeyEvent::Char('q') => {
+                        return Signal::Quit;
                     }
-                    if self.selected == 0 {
-                        match e {
-                            KeyEvent::Up | KeyEvent::Char('w') => {
-                                if self.menu.cursor_up(1) {
-                                    self.menu.output(render_tx);
-                                }
-                            }
-                            KeyEvent::Down | KeyEvent::Char('s') => {
-                                if self.menu.cursor_down(1) {
-                                    self.menu.output(render_tx);
-                                }
-                            }
-                            KeyEvent::Right | KeyEvent::Char('d') => match self.menu.execute(()) {
-                                Signals::Quit => {
-                                    signals.push(Signal::Quit);
-                                }
-                                Signals::NewScene(s) => {
-                                    signals.push(Signal::Scenes(SceneSignal::New(s)));
-                                }
-                                Signals::None => (),
-                            },
-                            _ => {}
+                    KeyEvent::Up | KeyEvent::Char('w') => {
+                        if self.menu.cursor_up(1) {
+                            self.menu.output(render_tx);
                         }
-                    } else if self.selected == 1 {
-                        match e {
-                            KeyEvent::Char('d') | KeyEvent::Char('A') | KeyEvent::Right => {
-                                self.test_selector.next();
-                                self.test_selector.output(render_tx);
-                            }
-                            KeyEvent::Char('a') | KeyEvent::Char('D') | KeyEvent::Left => {
-                                self.test_selector.prev();
-                                self.test_selector.output(render_tx);
-                            }
-                            _ => {}
-                        }
-                    } else if self.selected == 2 {
-                        self.test_textbox.process_key(e, render_tx, _canvas);
                     }
-                }
+                    KeyEvent::Down | KeyEvent::Char('s') => {
+                        if self.menu.cursor_down(1) {
+                            self.menu.output(render_tx);
+                        }
+                    }
+                    KeyEvent::Right | KeyEvent::Char('d') => match self.menu.execute(()) {
+                        Signals::Quit => {
+                            signals.push(Signal::Quit);
+                        }
+                        Signals::NewScene(s) => {
+                            signals.push(Signal::Scenes(SceneSignal::New(s)));
+                        }
+                        Signals::None => (),
+                    },
+                    _ => {}
+                },
                 _ => {}
             }
         }
@@ -216,17 +148,18 @@ impl MainMenu {
             return Signal::None;
         }
     }
+
     pub fn is_paused(&self) -> bool {
         false
     }
+
     pub fn reset(&mut self) {}
+
     pub fn resume(&mut self, render_tx: &mpsc::Sender<RenderSignal>, _canvas: &Canvas) {
         if let Err(_e) = render_tx.send(RenderSignal::Clear) {
             // Log that there is a problem
         }
         self.menu.output(render_tx);
-        self.test_selector.output(render_tx);
-        self.test_textbox.output(render_tx);
     }
     #[allow(unused)]
     pub fn suspend(&mut self, render_tx: &mpsc::Sender<RenderSignal>) {
