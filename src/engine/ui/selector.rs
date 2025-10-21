@@ -1,3 +1,19 @@
+/*
+Copyright 2025 Luke Maple
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+you may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 use super::super::enums::RenderSignal;
 use super::Border;
 use crate::engine::types::Position;
@@ -95,6 +111,9 @@ impl Selector {
         sfg: Option<Foreground>,
         sbg: Option<Background>,
     ) {
+        let bg_reset = Background::reset();
+        let fg_reset = Foreground::reset();
+
         if let Some(fg) = sfg {
             output.push_str(&fg.to_ansi());
         }
@@ -103,7 +122,7 @@ impl Selector {
         }
         output.push_str(s);
         if sbg.is_some() || sfg.is_some() {
-            output.push_str("\x1b[0m");
+            output.push_str(&(bg_reset.to_ansi() + &fg_reset.to_ansi()));
             if let Some(fg) = fg {
                 output.push_str(&fg.to_ansi());
             }
@@ -131,7 +150,7 @@ impl Selector {
                         output.push_str(&each.label);
                     }
                     if i < self.items.len() - 1 {
-                        output.push_str("  ");
+                        output.push_str("\n");
                     }
                 }
                 output
@@ -148,10 +167,18 @@ impl Selector {
                             self.select_background,
                         );
                     } else {
+                        Selector::contruct_line_color(
+                            each.label.as_str(),
+                            &mut output,
+                            self.foreground,
+                            self.background,
+                            self.select_foreground,
+                            self.select_background,
+                        );
                         output.push_str(&each.label);
                     }
                     if i < self.items.len() - 1 {
-                        output.push_str("\n\n");
+                        output.push_str(" ");
                     }
                 }
                 output
