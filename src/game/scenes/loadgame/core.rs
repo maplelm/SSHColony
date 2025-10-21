@@ -37,6 +37,7 @@ use std::sync::mpsc::{Receiver, Sender};
 enum Signal {
     None,
     NewWorld,
+    TestWorld,
     LoadWorld(String),
     WorldData(World),
     Back,
@@ -59,14 +60,14 @@ struct NewWorldForm {
 }
 
 pub struct LoadGame {
-    menu: Menu<Option<DirEntry>, Signal>,
+    menu: Menu<(), Signal>,
     is_init: bool,
 }
 
 impl LoadGame {
     pub fn new() -> Game {
         Game::LoadGame(Self {
-            menu: Menu::<Option<DirEntry>, Signal>::new(
+            menu: Menu::<(), Signal>::new(
                 0,
                 0,
                 Some(Measure::Percent(100)),
@@ -78,7 +79,7 @@ impl LoadGame {
                     Bsprite::String("#%".to_string()),
                     Padding::square(2),
                 )),
-                vec![],
+                vec![MenuItem::new("Play Now".to_string(), |z| Signal::TestWorld)],
                 None,
                 None,
             ),
@@ -91,18 +92,8 @@ impl LoadGame {
         canvas: &Canvas,
     ) -> EngineSignal<Game> {
         if let Err(_e) = render_clear(render_tx) {
-            // log that there was a problem
+            // log that there was a problem clearing the screen
         }
-        let save_dir: &str = "./saves/";
-        let save_path: &Path = Path::new(save_dir);
-        let mut saves: Vec<DirEntry> = get_saves_list(save_path);
-        add_load_files_to_menu(&mut self.menu, &saves);
-
-        self.menu
-            .add(MenuItem::new("New World".to_string(), new_world));
-        self.menu
-            .add(MenuItem::new("Back".to_string(), |_| Signal::Back));
-
         self.menu.output(render_tx);
         EngineSignal::None
     }
@@ -147,10 +138,11 @@ impl LoadGame {
                             self.menu.output(render_tx)
                         }
                     }
-                    KeyEvent::Char('d') => match self.menu.execute(None) {
+                    KeyEvent::Char('d') => match self.menu.execute(()) {
                         Signal::Back => {
                             batch.push(EngineSignal::Scenes(crate::engine::enums::SceneSignal::Pop))
                         }
+                        Signal::TestWorld => {}
                         _ => {}
                     },
                     _ => {}

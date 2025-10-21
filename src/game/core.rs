@@ -17,7 +17,7 @@ limitations under the License.
 #![allow(unreachable_patterns)]
 #![deny(unused)]
 
-use super::scenes::{GenerateWorld, InGame, LoadGame, MainMenu, Settings};
+use super::scenes::{GenerateWorld, InGame, LoadGame, MainMenu, Settings, PlayGame};
 use crate::engine::{
     enums::{RenderSignal, Signal},
     input::Event,
@@ -34,6 +34,7 @@ pub enum Game {
     Settings(Settings),
     InGame(InGame),
     LoadGame(LoadGame),
+    PlayGame(PlayGame)
 }
 
 impl Scene<Game> for Game {
@@ -44,6 +45,7 @@ impl Scene<Game> for Game {
             Game::Settings(s) => s.init(render_tx, canvas),
             Game::LoadGame(s) => s.init(render_tx, canvas),
             Game::GenerateWorld(s) => s.init(render_tx, canvas),
+            Game::PlayGame(s) => s.init(render_tx, canvas),
         }
     }
     fn is_init(&self) -> bool {
@@ -53,6 +55,7 @@ impl Scene<Game> for Game {
             Game::Settings(s) => s.is_init(),
             Game::LoadGame(s) => s.is_init(),
             Game::GenerateWorld(s) => s.is_init(),
+            Game::PlayGame(s) => s.is_init(),
         }
     }
     fn is_paused(&self) -> bool {
@@ -62,6 +65,7 @@ impl Scene<Game> for Game {
             Game::InGame(s) => s.is_paused(),
             Game::GenerateWorld(s) => s.is_paused(),
             Game::LoadGame(s) => s.is_paused(),
+            Game::PlayGame(s) => s.is_paused(),
         }
     }
     fn reset(&mut self) {
@@ -71,6 +75,7 @@ impl Scene<Game> for Game {
             Game::InGame(s) => s.reset(),
             Game::LoadGame(s) => s.reset(),
             Game::GenerateWorld(s) => s.reset(),
+            Game::PlayGame(s) => s.reset(),
         }
     }
     fn resume(&mut self, render_tx: &Sender<RenderSignal>, canvas: &Canvas) {
@@ -80,6 +85,7 @@ impl Scene<Game> for Game {
             Game::InGame(s) => s.resume(canvas),
             Game::LoadGame(s) => s.resume(render_tx, canvas),
             Game::GenerateWorld(s) => s.resume(render_tx, canvas),
+            Game::PlayGame(s) => s.resume(render_tx, canvas),
         }
     }
     fn suspend(&mut self, render_tx: &Sender<RenderSignal>) {
@@ -89,6 +95,7 @@ impl Scene<Game> for Game {
             Game::InGame(s) => s.suspend(),
             Game::LoadGame(s) => s.suspend(render_tx),
             Game::GenerateWorld(s) => s.suspend(render_tx),
+            Game::PlayGame(s) => s.suspend(render_tx),
         }
     }
     fn update(
@@ -104,6 +111,7 @@ impl Scene<Game> for Game {
             Game::InGame(s) => s.update(delta_time, event, render_tx, canvas),
             Game::LoadGame(s) => s.update(delta_time, event, render_tx, canvas),
             Game::GenerateWorld(s) => s.update(delta_time, event, render_tx, canvas),
+            Game::PlayGame(s) => s.update(delta_time, event, render_tx, canvas),
         }
     }
 }

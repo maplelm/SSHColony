@@ -14,16 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-mod generateworld;
-mod ingame;
-mod loadgame;
-mod mainmenu;
-mod settings;
-mod play;
+mod core;
 
-pub use generateworld::GenerateWorld;
-pub use ingame::*;
-pub use loadgame::*;
-pub use mainmenu::*;
-pub use settings::*;
-pub use play::*;
+pub use core::*;
