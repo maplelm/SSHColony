@@ -103,7 +103,7 @@ impl Selector {
         }
     }
 
-    fn contruct_line_color(
+    fn selected_item(
         s: &str,
         output: &mut String,
         fg: Option<Foreground>,
@@ -111,9 +111,6 @@ impl Selector {
         sfg: Option<Foreground>,
         sbg: Option<Background>,
     ) {
-        let bg_reset = Background::reset();
-        let fg_reset = Foreground::reset();
-
         if let Some(fg) = sfg {
             output.push_str(&fg.to_ansi());
         }
@@ -121,79 +118,75 @@ impl Selector {
             output.push_str(&bg.to_ansi());
         }
         output.push_str(s);
-        if sbg.is_some() || sfg.is_some() {
-            output.push_str(&(bg_reset.to_ansi() + &fg_reset.to_ansi()));
-            if let Some(fg) = fg {
-                output.push_str(&fg.to_ansi());
-            }
-            if let Some(bg) = bg {
-                output.push_str(&bg.to_ansi());
-            }
+        if let Some(fg) = fg {
+            output.push_str(&fg.to_ansi());
+        } else if sfg.is_some() {
+            output.push_str("\x1b[39m");
+        }
+        if let Some(bg) = bg {
+            output.push_str(&bg.to_ansi());
+        } else if sbg.is_some() {
+            output.push_str("\x1b[49m");
         }
     }
 
-    pub fn output(&mut self, render_tx: &Sender<RenderSignal>) {
-        let mut output: String = String::new();
-        let output = match self.direction {
-            SelectionDirection::Vertical => {
-                for (i, mut each) in self.items.iter().enumerate() {
-                    if i == self.cursor {
-                        Selector::contruct_line_color(
-                            each.label.as_str(),
-                            &mut output,
-                            self.foreground,
-                            self.background,
-                            self.select_foreground,
-                            self.select_background,
-                        );
-                    } else {
-                        output.push_str(&each.label);
-                    }
-                    if i < self.items.len() - 1 {
-                        output.push_str("\n");
-                    }
-                }
-                output
+    pub fn render_vertically(&mut self) -> String {
+        let mut output = String::new();
+        for (i, mut each) in self.items.iter().enumerate() {
+            if i == self.cursor {
+                Selector::selected_item(
+                    each.label.as_str(),
+                    &mut output,
+                    self.foreground,
+                    self.background,
+                    self.select_foreground,
+                    self.select_background,
+                );
+            } else {
+                output.push_str(&each.label);
             }
-            SelectionDirection::Horizontal => {
-                for (i, each) in self.items.iter().enumerate() {
-                    if i == self.cursor {
-                        Selector::contruct_line_color(
-                            each.label.as_str(),
-                            &mut output,
-                            self.foreground,
-                            self.background,
-                            self.select_foreground,
-                            self.select_background,
-                        );
-                    } else {
-                        Selector::contruct_line_color(
-                            each.label.as_str(),
-                            &mut output,
-                            self.foreground,
-                            self.background,
-                            self.select_foreground,
-                            self.select_background,
-                        );
-                        output.push_str(&each.label);
-                    }
-                    if i < self.items.len() - 1 {
-                        output.push_str(" ");
-                    }
-                }
-                output
+            if i < self.items.len() - 1 {
+                output.push_str("\n");
             }
-        };
+        }
+        output
+    }
 
-        match self.render_id.upgrade() {
+    pub fn render_horizontally(&mut self) -> String {
+        let mut output = String::new();
+        for (i, each) in self.items.iter().enumerate() {
+            if i == self.cursor {
+                Selector::selected_item(
+                    each.label.as_str(),
+                    &mut output,
+                    self.foreground,
+                    self.background,
+                    self.select_foreground,
+                    self.select_background,
+                );
+            } else {
+                output.push_str(&each.label);
+            }
+            if i < self.items.len() - 1 {
+                output.push_str(" ");
+            }
+        }
+        output
+    }
+
+    pub fn output(&mut self, render_tx: &Sender<RenderSignal>) {
+        if let Err(err) = match self.render_id.upgrade() {
             None => {
                 let arc_id = RenderUnitId::new(Layer::Ui);
                 self.render_id = Arc::downgrade(&arc_id);
-                if let Err(_e) = render_tx.send(RenderSignal::Insert(
+                render_tx.send(RenderSignal::Insert(
                     arc_id,
                     Object::static_text(
                         self.pos.as_3d(0),
-                        output,
+                        match self.direction {
+                            SelectionDirection::Vertical => self.render_vertically(),
+                            SelectionDirection::Horizontal => self.render_horizontally(),
+                        },
                         super::style::Justify::Center,
                         super::style::Align::Center,
                         self.width,
@@ -202,28 +195,27 @@ impl Selector {
                         self.foreground,
                         self.background,
                     ),
-                )) {
-                    // Log that there was a problem
-                }
+                ))
             }
-            Some(arc) => {
-                if let Err(_e) = render_tx.send(RenderSignal::Update(
-                    arc,
-                    Object::static_text(
-                        self.pos.as_3d(0),
-                        output,
-                        super::style::Justify::Center,
-                        super::style::Align::Center,
-                        self.width,
-                        self.height,
-                        self.border.clone(),
-                        self.foreground,
-                        self.background,
-                    ),
-                )) {
-                    // Log that there was a problem
-                }
-            }
+            Some(arc) => render_tx.send(RenderSignal::Update(
+                arc,
+                Object::static_text(
+                    self.pos.as_3d(0),
+                    match self.direction {
+                        SelectionDirection::Vertical => self.render_vertically(),
+                        SelectionDirection::Horizontal => self.render_horizontally(),
+                    },
+                    super::style::Justify::Center,
+                    super::style::Align::Center,
+                    self.width,
+                    self.height,
+                    self.border.clone(),
+                    self.foreground,
+                    self.background,
+                ),
+            )),
+        } {
+            // Log this error
         }
     }
 
