@@ -18,12 +18,12 @@ mod generateworld;
 mod ingame;
 mod loadgame;
 mod mainmenu;
-mod settings;
 mod play;
+mod settings;
 
 pub use generateworld::GenerateWorld;
 pub use ingame::*;
 pub use loadgame::*;
 pub use mainmenu::*;
-pub use settings::*;
 pub use play::*;
+pub use settings::*;

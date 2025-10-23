@@ -15,11 +15,9 @@ limitations under the License.
 */
 
 mod scenes;
-pub use scenes::MainMenu;
 use scenes::InGame;
-use scenes::Settings;
 use scenes::LoadGame;
+pub use scenes::MainMenu;
+use scenes::Settings;
 
-mod core;
-pub use core::*;
 pub mod types;

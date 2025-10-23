@@ -28,7 +28,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub fn start<T: Scene<T>>(mut ins: Instance<T>) -> Result<(), Error> {
+pub fn start(mut ins: Instance) -> Result<(), Error> {
     ins.term_orig = term::set_raw();
     ins.term_orig.toggle_alt_buffer();
     ins.term_orig.toggle_cursor_visable();
@@ -40,7 +40,7 @@ pub fn start<T: Scene<T>>(mut ins: Instance<T>) -> Result<(), Error> {
     let index = ins.game_state.len() - 1;
     if let Some(scene) = ins.game_state.get_mut(index) {
         if !scene.is_init() {
-            scene.init(&render_tx, &ins.canvas);
+            scene.init(&render_tx, None, &ins.canvas);
         }
     }
 
@@ -62,8 +62,8 @@ pub fn start<T: Scene<T>>(mut ins: Instance<T>) -> Result<(), Error> {
     }
 }
 
-fn main_loop<T: Scene<T>>(
-    mut ins: Instance<T>,
+fn main_loop(
+    mut ins: Instance,
     render_tx: mpsc::Sender<RenderSignal>,
     event_rx: mpsc::Receiver<Event>,
 ) -> Result<(), Error> {
@@ -87,26 +87,34 @@ fn main_loop<T: Scene<T>>(
     Ok(())
 }
 
-fn dispatch<T: Scene<T>>(
-    mut ins: Instance<T>,
-    sig: Signal<T>,
+fn dispatch(
+    mut ins: Instance,
+    sig: Signal,
     render_tx: &mpsc::Sender<RenderSignal>,
-) -> Result<Instance<T>, Error> {
+) -> Result<Instance, Error> {
     match sig {
         Signal::None => {}
         Signal::Quit => ins.ctx.cancel(),
         Signal::Scenes(ss) => match ss {
-            SceneSignal::New(mut ns) => {
+            SceneSignal::New { mut scene, signal } => {
                 if ins.game_state.len() > 0 {
                     let index = ins.game_state.len() - 1;
                     ins.game_state.get_mut(index).unwrap().suspend(render_tx);
                 }
-                let sig = ns.init(render_tx, &ins.canvas);
+                let sig = scene.init(
+                    render_tx,
+                    if signal.is_none() {
+                        None
+                    } else {
+                        Some(*(signal.unwrap()))
+                    },
+                    &ins.canvas,
+                );
                 match dispatch(ins, sig, render_tx) {
                     Ok(i) => ins = i,
                     Err(e) => return Err(e),
                 }
-                ins.add_scene(ns);
+                ins.add_scene(scene);
             }
             SceneSignal::Pop => {
                 ins.game_state.pop();

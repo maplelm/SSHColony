@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-use crate::game::Game;
 use crate::engine::{
-    render::Canvas,
     enums::{RenderSignal, Signal as EngineSignal},
-    input::Event as InputEvent
+    input::Event as InputEvent,
+    render::Canvas,
+    traits::Scene,
 };
 use std::sync::mpsc;
 
@@ -30,53 +30,48 @@ enum Signals {
 
 pub struct PlayGame {
     init_complete: bool,
-    paused: bool
+    paused: bool,
 }
-
 impl PlayGame {
-    pub fn new() -> Game {
-        Game::PlayGame(Self{
+    pub fn new() -> Box<dyn Scene> {
+        Box::new(Self {
             init_complete: false,
-            paused: false
+            paused: false,
         })
     }
+}
 
-    pub fn init(
+impl Scene for PlayGame {
+    fn init(
         &mut self,
         render_tx: &mpsc::Sender<RenderSignal>,
+        signal: Option<EngineSignal>,
         _canvas: &Canvas,
-    ) -> EngineSignal<Game> {
+    ) -> EngineSignal {
         EngineSignal::None
     }
 
-    pub fn is_init(&self) -> bool {
+    fn is_init(&self) -> bool {
         self.init_complete
     }
 
-    pub fn update(
+    fn update(
         &mut self,
         _delta_time: f32,
         event: &mpsc::Receiver<InputEvent>,
         render_tx: &mpsc::Sender<RenderSignal>,
         _canvas: &Canvas,
-    ) -> EngineSignal<Game> {
+    ) -> EngineSignal {
         EngineSignal::None
     }
 
-    pub fn is_paused(&self) -> bool {
+    fn is_paused(&self) -> bool {
         self.paused
     }
 
-    pub fn reset(&mut self) {}
+    fn reset(&mut self) {}
 
-    pub fn resume(
-        &mut self,
-        render_tx: &mpsc::Sender<RenderSignal>,
-        _canvas: &Canvas,
-    ) {}
+    fn resume(&mut self, render_tx: &mpsc::Sender<RenderSignal>, _canvas: &Canvas) {}
 
-    pub fn suspend(
-        &mut self,
-        render_tx: &mpsc::Sender<RenderSignal>,
-    ) {}
+    fn suspend(&mut self, render_tx: &mpsc::Sender<RenderSignal>) {}
 }

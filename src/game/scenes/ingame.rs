@@ -16,9 +16,13 @@ limitations under the License.
 
 use crate::{
     engine::{
-        self, enums::{RenderSignal, Signal}, input::{Event, KeyEvent}, render::{self, Canvas}, traits::Scene, Error
+        self, Error,
+        enums::{RenderSignal, Signal},
+        input::{Event, KeyEvent},
+        render::{self, Canvas},
+        traits::Scene,
     },
-    game::{types::World, Game},
+    game::types::World,
 };
 use std::{marker::PhantomData, sync::mpsc};
 pub struct InGame {
@@ -35,7 +39,7 @@ const DEFAULT_WORLD_HEIGHT: f32 = 1.0;
 const DEFAULT_WORLD_SEA_LEVEL: f32 = 0.0;
 
 impl InGame {
-    pub fn new() -> Result<Game, Error> {
+    pub fn new() -> Result<Box<dyn Scene>, Error> {
         let mut world: World;
         match World::new(
             "test_world".to_string(),
@@ -52,7 +56,7 @@ impl InGame {
             Err(e) => return Err(e),
             Ok(w) => world = w,
         }
-        Ok(Game::InGame(Self {
+        Ok(Box::new(Self {
             world: world,
             init_complete: false,
             is_paused: false,
@@ -60,33 +64,34 @@ impl InGame {
     }
 }
 
-impl InGame {
-    pub fn init(
+impl Scene for InGame {
+    fn init(
         &mut self,
         _render_tx: &mpsc::Sender<RenderSignal>,
+        signal: Option<Signal>,
         canvas: &Canvas,
-    ) -> Signal<Game> {
+    ) -> Signal {
         let _ = self.world.generate(None);
         self.init_complete = true;
 
         Signal::None
     }
-    pub fn is_init(&self) -> bool {
+    fn is_init(&self) -> bool {
         self.init_complete
     }
-    pub fn is_paused(&self) -> bool {
+    fn is_paused(&self) -> bool {
         self.is_paused
     }
-    pub fn reset(&mut self) {}
-    pub fn resume(&mut self, canvas: &Canvas) {}
-    pub fn suspend(&mut self) {}
-    pub fn update(
+    fn reset(&mut self) {}
+    fn resume(&mut self, render_tx: &mpsc::Sender<RenderSignal>, canvas: &Canvas) {}
+    fn suspend(&mut self, render_tx: &mpsc::Sender<RenderSignal>) {}
+    fn update(
         &mut self,
         delta_time: f32,
         event: &mpsc::Receiver<Event>,
         render_tx: &std::sync::mpsc::Sender<RenderSignal>,
         canvas: &Canvas,
-    ) -> Signal<Game> {
+    ) -> Signal {
         for event in event.try_iter() {
             match event {
                 Event::Keyboard(key) => match key {

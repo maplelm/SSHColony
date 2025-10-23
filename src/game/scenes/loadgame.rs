@@ -17,10 +17,12 @@ limitations under the License.
 use crate::engine::enums::RenderSignal;
 use crate::engine::enums::Signal as EngineSignal;
 use crate::engine::render::clear as render_clear;
+use crate::engine::traits::Scene;
 use crate::engine::ui::BorderSprite as Bsprite;
 use crate::engine::ui::MenuItem;
+use crate::game::scenes::PlayGame;
 
-use super::super::super::types::World;
+use super::super::types::World;
 use crate::engine::input::{Event, KeyEvent};
 use crate::engine::{
     render::Canvas,
@@ -29,7 +31,6 @@ use crate::engine::{
         style::{Align, Justify, Measure, Origin},
     },
 };
-use crate::game::Game;
 use std::fs::{self, DirEntry};
 use std::path::Path;
 use std::sync::mpsc::{Receiver, Sender};
@@ -63,10 +64,9 @@ pub struct LoadGame {
     menu: Menu<(), Signal>,
     is_init: bool,
 }
-
 impl LoadGame {
-    pub fn new() -> Game {
-        Game::LoadGame(Self {
+    pub fn new() -> Box<dyn Scene> {
+        Box::new(Self {
             menu: Menu::<(), Signal>::new(
                 0,
                 0,
@@ -79,18 +79,25 @@ impl LoadGame {
                     Bsprite::String("#%".to_string()),
                     Padding::square(2),
                 )),
-                vec![MenuItem::new("Play Now".to_string(), |z| Signal::TestWorld)],
+                vec![
+                    MenuItem::new("Play Now".to_string(), |z| Signal::TestWorld),
+                    MenuItem::new("Back".to_string(), |z| Signal::Back),
+                ],
                 None,
                 None,
             ),
             is_init: false,
         })
     }
-    pub fn init(
+}
+
+impl Scene for LoadGame {
+    fn init(
         &mut self,
         render_tx: &Sender<RenderSignal>,
+        signal: Option<EngineSignal>,
         canvas: &Canvas,
-    ) -> EngineSignal<Game> {
+    ) -> EngineSignal {
         if let Err(_e) = render_clear(render_tx) {
             // log that there was a problem clearing the screen
         }
@@ -98,33 +105,33 @@ impl LoadGame {
         EngineSignal::None
     }
 
-    pub fn is_init(&self) -> bool {
+    fn is_init(&self) -> bool {
         true
     }
 
-    pub fn is_paused(&self) -> bool {
+    fn is_paused(&self) -> bool {
         false
     }
 
-    pub fn reset(&mut self) {}
+    fn reset(&mut self) {}
 
-    pub fn resume(&mut self, render_tx: &Sender<RenderSignal>, canvas: &Canvas) {
+    fn resume(&mut self, render_tx: &Sender<RenderSignal>, canvas: &Canvas) {
         render_tx.send(RenderSignal::Clear);
         self.menu.output(render_tx);
     }
 
-    pub fn suspend(&mut self, render_tx: &Sender<RenderSignal>) {
+    fn suspend(&mut self, render_tx: &Sender<RenderSignal>) {
         render_tx.send(RenderSignal::Clear);
     }
 
-    pub fn update(
+    fn update(
         &mut self,
         delta_time: f32,
         event: &Receiver<Event>,
         render_tx: &Sender<RenderSignal>,
         canvas: &Canvas,
-    ) -> EngineSignal<Game> {
-        let mut batch: Vec<EngineSignal<Game>> = Vec::new();
+    ) -> EngineSignal {
+        let mut batch: Vec<EngineSignal> = Vec::new();
         for event in event.try_iter() {
             match event {
                 Event::Keyboard(key) => match key {
@@ -142,7 +149,12 @@ impl LoadGame {
                         Signal::Back => {
                             batch.push(EngineSignal::Scenes(crate::engine::enums::SceneSignal::Pop))
                         }
-                        Signal::TestWorld => {}
+                        Signal::TestWorld => batch.push(EngineSignal::Scenes(
+                            crate::engine::enums::SceneSignal::New {
+                                scene: PlayGame::new(),
+                                signal: None,
+                            },
+                        )),
                         _ => {}
                     },
                     _ => {}

@@ -14,9 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-use term::color::{Background, Color, Foreground, Iso};
-use std::sync::mpsc;
 use crate::{
+    engine::traits::Scene,
     engine::{
         enums::{RenderSignal, SceneSignal, Signal},
         input::{Event, KeyEvent},
@@ -27,16 +26,17 @@ use crate::{
             style::{Align, Justify, Measure, Origin, Style},
         },
     },
-    game::{Game, LoadGame, Settings},
+    game::{LoadGame, Settings},
 };
+use std::sync::mpsc;
+use term::color::{Background, Color, Foreground, Iso};
 
 #[allow(unused)]
 enum Signals {
     None,
     Quit,
-    NewScene(Game),
+    NewScene(Box<dyn Scene>),
 }
-
 
 pub struct MainMenu {
     menu: Menu<(), Signals>,
@@ -44,8 +44,8 @@ pub struct MainMenu {
 }
 
 impl MainMenu {
-    pub fn new() -> Game {
-        Game::MainMenu(Self {
+    pub fn new() -> Box<dyn Scene> {
+        Box::new(Self {
             menu: Menu::new(
                 0,
                 0,
@@ -85,12 +85,15 @@ impl MainMenu {
             init_complete: false,
         })
     }
+}
 
-    pub fn init(
+impl Scene for MainMenu {
+    fn init(
         &mut self,
         render_tx: &mpsc::Sender<RenderSignal>,
+        signal: Option<Signal>,
         _canvas: &Canvas,
-    ) -> Signal<Game> {
+    ) -> Signal {
         self.menu.output(render_tx);
         self.init_complete = true;
         if let Err(_e) = render_tx.send(RenderSignal::Redraw) {
@@ -99,18 +102,18 @@ impl MainMenu {
         Signal::None
     }
 
-    pub fn is_init(&self) -> bool {
+    fn is_init(&self) -> bool {
         self.init_complete
     }
 
-    pub fn update(
+    fn update(
         &mut self,
         _delta_time: f32,
         event: &mpsc::Receiver<Event>,
         render_tx: &mpsc::Sender<RenderSignal>,
         _canvas: &Canvas,
-    ) -> Signal<Game> {
-        let mut signals: Vec<Signal<Game>> = vec![];
+    ) -> Signal {
+        let mut signals: Vec<Signal> = vec![];
         for e in event.try_iter() {
             match e {
                 Event::Keyboard(e) => match e {
@@ -132,7 +135,10 @@ impl MainMenu {
                             signals.push(Signal::Quit);
                         }
                         Signals::NewScene(s) => {
-                            signals.push(Signal::Scenes(SceneSignal::New(s)));
+                            signals.push(Signal::Scenes(SceneSignal::New {
+                                scene: s,
+                                signal: None,
+                            }));
                         }
                         Signals::None => (),
                     },
@@ -149,20 +155,20 @@ impl MainMenu {
         }
     }
 
-    pub fn is_paused(&self) -> bool {
+    fn is_paused(&self) -> bool {
         false
     }
 
-    pub fn reset(&mut self) {}
+    fn reset(&mut self) {}
 
-    pub fn resume(&mut self, render_tx: &mpsc::Sender<RenderSignal>, _canvas: &Canvas) {
+    fn resume(&mut self, render_tx: &mpsc::Sender<RenderSignal>, _canvas: &Canvas) {
         if let Err(_e) = render_tx.send(RenderSignal::Clear) {
             // Log that there is a problem
         }
         self.menu.output(render_tx);
     }
     #[allow(unused)]
-    pub fn suspend(&mut self, render_tx: &mpsc::Sender<RenderSignal>) {
+    fn suspend(&mut self, render_tx: &mpsc::Sender<RenderSignal>) {
         if let Err(_e) = render_tx.send(RenderSignal::Clear) {
             // Log that there is a problem
         }

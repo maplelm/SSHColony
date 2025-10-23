@@ -15,17 +15,14 @@ limitations under the License.
 */
 
 #![allow(unused)]
-use crate::{
-    engine::{
-        self,
-        enums::{RenderSignal, SceneSignal, Signal},
-        input::{Event, KeyEvent},
-        render::{self, Canvas, Object, RenderUnitId},
-        traits::Scene,
-        types::Position3D,
-        ui::style::{Align, Justify},
-    },
-    game::Game,
+use crate::engine::{
+    self,
+    enums::{RenderSignal, SceneSignal, Signal},
+    input::{Event, KeyEvent},
+    render::{self, Canvas, Object, RenderUnitId},
+    traits::Scene,
+    types::Position3D,
+    ui::style::{Align, Justify},
 };
 use std::{
     marker::PhantomData,
@@ -38,20 +35,21 @@ pub struct Settings {
 }
 
 impl Settings {
-    pub fn new() -> Game {
-        Game::Settings(Self {
+    pub fn new() -> Box<dyn Scene> {
+        Box::new(Self {
             text_handle: Weak::new(),
             init_complete: false,
         })
     }
 }
 
-impl Settings {
-    pub fn init(
+impl Scene for Settings {
+    fn init(
         &mut self,
         render_tx: &mpsc::Sender<RenderSignal>,
+        signal: Option<Signal>,
         canvas: &Canvas,
-    ) -> Signal<Game> {
+    ) -> Signal {
         render_tx.send(RenderSignal::Clear);
         let arc_new = Arc::<RenderUnitId>::new(RenderUnitId::Ui(AtomicUsize::new(0)));
         self.text_handle = Arc::downgrade(&arc_new);
@@ -71,23 +69,23 @@ impl Settings {
 
         Signal::None
     }
-    pub fn is_init(&self) -> bool {
+    fn is_init(&self) -> bool {
         return self.init_complete;
     }
-    pub fn is_paused(&self) -> bool {
+    fn is_paused(&self) -> bool {
         false
     }
-    pub fn reset(&mut self) {}
-    pub fn resume(&mut self, canvas: &Canvas) {}
-    pub fn suspend(&mut self) {}
-    pub fn update(
+    fn reset(&mut self) {}
+    fn resume(&mut self, render_tx: &mpsc::Sender<RenderSignal>, canvas: &Canvas) {}
+    fn suspend(&mut self, render_tx: &mpsc::Sender<RenderSignal>) {}
+    fn update(
         &mut self,
         delta_time: f32,
         event: &mpsc::Receiver<Event>,
         render_tx: &std::sync::mpsc::Sender<RenderSignal>,
         canvas: &Canvas,
-    ) -> Signal<Game> {
-        let mut signals: Vec<Signal<Game>> = vec![];
+    ) -> Signal {
+        let mut signals: Vec<Signal> = vec![];
         for each in event.try_iter() {
             match each {
                 Event::Keyboard(k) => match k {

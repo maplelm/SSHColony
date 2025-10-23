@@ -20,15 +20,21 @@ use super::enums::Signal;
 use std::hash::Hash;
 use std::ops::{Add, Div, Mul, Sub};
 use std::sync::mpsc;
-pub trait Scene<T: Scene<T>> {
+
+pub trait Scene {
     fn update(
         &mut self,
         delta_time: f32,
         event_rx: &mpsc::Receiver<Event>,
         render_tx: &mpsc::Sender<RenderSignal>,
         canvas: &Canvas,
-    ) -> Signal<T>;
-    fn init(&mut self, render_tx: &mpsc::Sender<RenderSignal>, canvas: &Canvas) -> Signal<T>;
+    ) -> Signal;
+    fn init(
+        &mut self,
+        render_tx: &mpsc::Sender<RenderSignal>,
+        signal: Option<Signal>,
+        canvas: &Canvas,
+    ) -> Signal;
     fn is_init(&self) -> bool;
     fn suspend(&mut self, render_tx: &mpsc::Sender<RenderSignal>);
     fn resume(&mut self, render_tx: &mpsc::Sender<RenderSignal>, canvas: &Canvas);

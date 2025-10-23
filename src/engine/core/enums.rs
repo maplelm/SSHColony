@@ -1,3 +1,4 @@
+use crate::engine::input::Event;
 /*
 Copyright 2025 Luke Maple
 
@@ -23,20 +24,30 @@ use std::sync::{Arc, atomic::AtomicUsize};
 use term::Terminal;
 use term::color::{Background, Foreground};
 
-pub enum Signal<T: Scene<T>> {
+pub enum Signal {
     None,
     Quit,
-    Scenes(SceneSignal<T>),
+    CrossScene { label: String, data: Encoding },
+    Scenes(SceneSignal),
     Render(RenderSignal),
     Error(Error),
     Log(String),
-    Batch(Vec<Signal<T>>),
-    Sequence(Vec<Signal<T>>),
+    Batch(Vec<Signal>),
+    Sequence(Vec<Signal>),
 }
 
-pub enum SceneSignal<T: Scene<T>> {
+pub enum Encoding {
+    Json,
+    Bson,
+    Bincode,
+}
+
+pub enum SceneSignal {
     Pop,
-    New(T),
+    New {
+        scene: Box<dyn Scene>,
+        signal: Option<Box<Signal>>,
+    },
 }
 
 pub enum RenderSignal {
