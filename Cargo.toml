@@ -19,3 +19,4 @@ ron = "0.11.0"
 bincode = { version = "2.0.1", features = ["serde"] }
 my_term = "0.0.1"
 chrono = "0.4.42"
+mlua = { version = "0.11.4", features = ["serde", "lua54", "macros", "vendored"]}

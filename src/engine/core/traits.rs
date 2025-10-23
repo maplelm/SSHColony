@@ -32,7 +32,7 @@ pub trait Scene {
     fn init(
         &mut self,
         render_tx: &mpsc::Sender<RenderSignal>,
-        signal: Option<Signal>,
+        signal: Option<SceneDataMsg>,
         canvas: &Canvas,
     ) -> Signal;
     fn is_init(&self) -> bool;
@@ -50,8 +50,7 @@ pub trait Numeric:
     + Sub<Output = Self>
     + Mul<Output = Self>
     + Div<Output = Self>
-{
-}
+{}
 
 impl Numeric for u8 {}
 impl Numeric for u16 {}

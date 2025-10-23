@@ -19,6 +19,12 @@ SSH Colony is a tile-based colony management game where you guide NPCs through a
 - **Crafting System** - Resource gathering and item creation
 - **World Persistence** - Save and load your colonies
 
+#### Lua Scripting
+
+- Implement UI API for lua (render API)
+- Implement Event API for lua
+- Implement Signal API for lua
+
 ## 🏗️ Architecture
 
 ### Engine (`src/engine/`)
