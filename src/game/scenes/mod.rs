@@ -20,7 +20,9 @@ mod loadgame;
 mod mainmenu;
 mod play;
 mod settings;
+mod custom;
 
+pub use custom::*;
 pub use generateworld::GenerateWorld;
 pub use ingame::*;
 pub use loadgame::*;

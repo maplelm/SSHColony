@@ -146,6 +146,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34080505efa8e45a4b816c349525ebe327ceaa8559756f0356cba97ef3bf7432"
 
 [[package]]
+name = "my_term"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "28e9f251a79c6f3d29863a8775bab44a52ff5b82eb23b61ea570c378fb5784f8"
+dependencies = [
+ "bincode",
+ "libc",
+ "ron",
+ "serde",
+]
+
+[[package]]
 name = "num-traits"
 version = "0.2.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -245,25 +257,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "term"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "libc",
- "ron",
- "serde",
-]
-
-[[package]]
 name = "term-rpg-rs"
 version = "0.1.0"
 dependencies = [
  "bincode",
  "chrono",
  "libc",
+ "my_term",
  "ron",
  "serde",
- "term",
 ]
 
 [[package]]

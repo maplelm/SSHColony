@@ -22,7 +22,7 @@ use crate::engine::{
     ui::style::Measure,
 };
 use std::sync::{Arc, Weak, mpsc::Sender};
-use term::color::{Background, Foreground};
+use my_term::color::{Background, Foreground};
 
 pub struct SelectorItem {
     pub label: String,

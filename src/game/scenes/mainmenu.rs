@@ -29,7 +29,7 @@ use crate::{
     game::{LoadGame, Settings},
 };
 use std::sync::mpsc;
-use term::color::{Background, Color, Foreground, Iso};
+use my_term::color::{Background, Color, Foreground, Iso};
 
 #[allow(unused)]
 enum Signals {

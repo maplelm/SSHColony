@@ -16,7 +16,7 @@ limitations under the License.
 
 use super::super::core::traits::Scene;
 use super::super::{Context, consts::DEFAULT_CANVAS, render::Canvas};
-use term::{Terminal, term_size};
+use my_term::{Terminal, term_size};
 
 pub struct Instance {
     pub ctx: Context,

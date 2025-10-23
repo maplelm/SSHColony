@@ -19,7 +19,7 @@ limitations under the License.
 use super::super::border::Border;
 use super::types::*;
 use serde::{Deserialize, Serialize};
-use term::color::{Background, Foreground};
+use my_term::color::{Background, Foreground};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Style {

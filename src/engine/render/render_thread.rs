@@ -32,7 +32,7 @@ use std::{
     rc::{Rc, Weak},
     sync::{Arc, mpsc},
 };
-use term::color::{Background, Color, Foreground};
+use my_term::color::{Background, Color, Foreground};
 
 // ##################
 // ## Type Aliases ##

@@ -27,7 +27,7 @@ use super::{
 use crate::engine::enums::RenderSignal;
 use crate::engine::render::{Layer, Object, RenderUnitId};
 use crate::engine::ui::style::{Align, Justify};
-use term::color::{Background, Foreground};
+use my_term::color::{Background, Foreground};
 
 #[allow(unused)]
 const CURSOR_OFFSET: usize = 2;

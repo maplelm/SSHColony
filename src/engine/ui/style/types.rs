@@ -71,7 +71,7 @@ pub struct Size {
 mod test {
     use super::*;
     use crate::engine::consts::DEFAULT_CANVAS;
-    use term::term_size;
+    use my_term::term_size;
     #[test]
     fn measure_test() {
         let mut canvas = DEFAULT_CANVAS;

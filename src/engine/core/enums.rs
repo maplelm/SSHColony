@@ -21,13 +21,14 @@ use super::super::Error;
 use super::super::types::Position3D;
 use super::traits::Scene;
 use std::sync::{Arc, atomic::AtomicUsize};
-use term::Terminal;
-use term::color::{Background, Foreground};
+use std::any::Any;
+use my_term::Terminal;
+use my_term::color::{Background, Foreground};
 
+#[derive(Send, Sync, Debug)]
 pub enum Signal {
     None,
     Quit,
-    CrossScene { label: String, data: Encoding },
     Scenes(SceneSignal),
     Render(RenderSignal),
     Error(Error),
@@ -36,10 +37,14 @@ pub enum Signal {
     Sequence(Vec<Signal>),
 }
 
-pub enum Encoding {
-    Json,
-    Bson,
-    Bincode,
+#[derive(Send, Sync, Debug)]
+pub enum SceneDataMsg {
+    GameState,
+    Settings,
+    Custom {
+        type_id: String,
+        data: Box<dyn Any + Send + Sync>
+    }
 }
 
 pub enum SceneSignal {

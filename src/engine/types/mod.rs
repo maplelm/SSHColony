@@ -14,14 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-mod encoding;
 mod file;
 mod instance;
 mod positions;
 mod sparseset;
 mod store;
 
-pub use encoding::Encoding;
 pub use file::*;
 pub use positions::*;
 pub use sparseset::SparseSet;

@@ -29,7 +29,7 @@ use std::{
 };
 
 pub fn start(mut ins: Instance) -> Result<(), Error> {
-    ins.term_orig = term::set_raw();
+    ins.term_orig = my_term::set_raw();
     ins.term_orig.toggle_alt_buffer();
     ins.term_orig.toggle_cursor_visable();
 
@@ -190,10 +190,10 @@ fn start_render_thread(
     (tx, handle)
 }
 
-fn exit_engine(mut t: term::Terminal) {
+fn exit_engine(mut t: my_term::Terminal) {
     t.toggle_alt_buffer();
     t.toggle_cursor_visable();
-    term::set_term(t);
+    my_term::set_term(t);
 }
 
 fn debug_pause() {

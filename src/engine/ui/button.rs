@@ -23,7 +23,7 @@ use super::{
     style::{Align, Justify, Measure},
 };
 use crate::engine::render::{Layer, Object, RenderUnitId};
-use term::color::{Background, Foreground};
+use my_term::color::{Background, Foreground};
 
 pub struct Button<I, O> {
     render_id: Weak<RenderUnitId>,

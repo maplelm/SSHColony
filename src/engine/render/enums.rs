@@ -26,7 +26,7 @@ use std::{
     sync::{atomic::AtomicUsize, mpsc},
     time::{Duration, Instant},
 };
-use term::color::{Background, Foreground};
+use my_term::color::{Background, Foreground};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Static {

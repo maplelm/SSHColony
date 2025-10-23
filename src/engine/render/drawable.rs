@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::io::Write;
 use std::time::{Duration, Instant};
-use term::color::{Background, Foreground};
+use my_term::color::{Background, Foreground};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 // Sprites /////////////////////////////////////////////////////////////////////////////////////
@@ -616,7 +616,7 @@ mod test {
         consts::DEFAULT_CANVAS,
         ui::{BorderSprite, Padding},
     };
-    use term::term_size;
+    use my_term::term_size;
 
     #[test]
     fn basetext_height_match() {
