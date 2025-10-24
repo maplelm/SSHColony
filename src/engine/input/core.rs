@@ -35,11 +35,41 @@ pub enum KeyEvent {
     F(u8), //F1-12
 }
 
+impl KeyEvent {
+    pub fn to_string(&self) -> String {
+        match self {
+            Self::Char(c) => c.to_string(),
+            Self::Control(c) => String::from("ctrl+") + c,
+            Self::Alt(c) => String::from("alt+") + c,
+            Self::Enter => String::from('\n'),
+            Self::Tab => String::from('\t'),
+            Self::Backspace => String::from(127 as char),
+            Self::Escape => String::from("\x1b"),
+            Self::Up => String::from("up"),
+            Self::Down => String::from("down"),
+            Self::Left => String::from("left"),
+            Self::Right => String::from("right"),
+            Self::F(n) => format!("F{}", n),
+        }
+    }
+}
+
 pub enum OtherEvent {
     EnterFocus,
     LeaveFocus,
     ScreenSizeChange { width: u32, height: u32 },
     Unknown(String),
+}
+
+impl OtherEvent {
+    pub fn to_string(&self) -> String {
+        match self {
+            Self::EnterFocus => "enterfocus".to_string(),
+            Self::LeaveFocus => "leavefocus".to_string(),
+            Self::ScreenSizeChange { width, height } => format!("ssc+{}+{}", width, height),
+            Self::Unknown(s) => s,
+        }
+    }
 }
 
 type MouseButtonValue = u8;
@@ -57,10 +87,39 @@ pub enum MouseEvent {
     Move(MouseData),
 }
 
+impl MouseEvent {
+    pub fn to_string(&self) -> String {
+        match self {
+            Self::Pressed(p) => format!("pressed+{}", p.to_string()),
+            Self::Release(r) => format!("released+{}", r.to_string()),
+            Self::Move(m) => format!("moved+{}", m.to_string()),
+        }
+    }
+}
+
 pub struct MouseData {
     button: MouseButton,
     pos: MousePos,
 }
+
+impl MouseData {
+    pub fn to_string(&self) -> String {
+        format!(
+            "{}+{}+{}",
+            match self.button {
+                MouseButton::None => "none",
+                MouseButton::Left => "left",
+                MouseButton::Right => "right",
+                MouseButton::Middle => "middle",
+                MouseButton::Fourth => "fourth",
+                MouseButton::Fith => "fith",
+            },
+            self.pos.x,
+            self.pos.y
+        )
+    }
+}
+
 pub struct MousePos {
     x: u16,
     y: u16,
@@ -220,6 +279,16 @@ pub enum Event {
     Keyboard(KeyEvent),
     Mouse(MouseEvent),
     Other(OtherEvent),
+}
+
+impl Event {
+    pub fn to_string(&self) -> String {
+        match self {
+            Self::Keyboard(k) => format!("keyboard\x1B\x7F\x1B{}", k.to_string()),
+            Self::Mouse(m) => format!("mouse\x1B\x7F\x1B{}", m.to_string()),
+            Self::Other(o) => format!("other\x1B\x7F\x1b{}", o.to_string()),
+        }
+    }
 }
 
 impl std::fmt::Debug for Event {

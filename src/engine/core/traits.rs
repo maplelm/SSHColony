@@ -21,6 +21,7 @@ use std::hash::Hash;
 use std::ops::{Add, Div, Mul, Sub};
 use std::sync::mpsc;
 
+/*
 pub trait Scene {
     fn update(
         &mut self,
@@ -42,6 +43,7 @@ pub trait Scene {
     fn reset(&mut self);
 }
 
+*/
 pub trait Numeric:
     Copy
     + PartialEq
@@ -50,7 +52,8 @@ pub trait Numeric:
     + Sub<Output = Self>
     + Mul<Output = Self>
     + Div<Output = Self>
-{}
+{
+}
 
 impl Numeric for u8 {}
 impl Numeric for u16 {}

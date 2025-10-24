@@ -1,4 +1,3 @@
-use crate::engine::input::Event;
 /*
 Copyright 2025 Luke Maple
 
@@ -14,21 +13,24 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+use crate::engine::input::Event;
 use crate::engine::render::RenderUnitId;
 
 use super::super::super::render::{Canvas, Layer, Object};
 use super::super::Error;
 use super::super::types::Position3D;
 use super::traits::Scene;
-use std::sync::{Arc, atomic::AtomicUsize};
-use std::any::Any;
+use mlua::UserData;
 use my_term::Terminal;
 use my_term::color::{Background, Foreground};
+use std::any::Any;
+use std::sync::{Arc, atomic::AtomicUsize};
 
-#[derive(Send, Sync, Debug)]
 pub enum Signal {
     None,
     Quit,
+    SceneUp,
+    SceneDown,
     Scenes(SceneSignal),
     Render(RenderSignal),
     Error(Error),
@@ -37,14 +39,22 @@ pub enum Signal {
     Sequence(Vec<Signal>),
 }
 
-#[derive(Send, Sync, Debug)]
+impl UserData for Signal {
+    fn add_fields<F: mlua::UserDataFields<Self>>(fields: &mut F) {
+        fields.add_field("None", Self::None);
+        fields.add_field("Quit", Self::Quit);
+        fields.add_field("SceneUp", Self::SceneUp);
+        fields.add_field("SceneDown", Self::SceneDown);
+    }
+}
+
 pub enum SceneDataMsg {
     GameState,
     Settings,
     Custom {
         type_id: String,
-        data: Box<dyn Any + Send + Sync>
-    }
+        data: Box<dyn Any + Send + Sync>,
+    },
 }
 
 pub enum SceneSignal {
@@ -53,6 +63,12 @@ pub enum SceneSignal {
         scene: Box<dyn Scene>,
         signal: Option<Box<Signal>>,
     },
+}
+
+impl UserData for SceneSignal {
+    fn add_fields<F: mlua::UserDataFields<Self>>(fields: &mut F) {
+        fields.add_field("Pop", Self::Pop);
+    }
 }
 
 pub enum RenderSignal {

@@ -13,10 +13,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-pub mod enums;
 mod audio_thread;
+pub mod enums;
 mod event_thread;
 mod main_thread;
-pub  mod traits;
+mod scene;
+pub mod traits;
 
 pub use main_thread::start;
+pub use scene::*;
