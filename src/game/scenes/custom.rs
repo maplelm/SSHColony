@@ -2,29 +2,34 @@ use crate::engine::enums::{RenderSignal, SceneDataMsg, SceneSignal, Signal as En
 use crate::engine::input::Event;
 use crate::engine::render::Canvas;
 use mlua::{Function, IntoLua, Lua, Table, UserData};
+use std::rc::Rc;
 use std::sync::mpsc;
 
 pub struct Scene {
-    lua: Lua,          // Lua Context
-    scene_data: Table, // Global variables
-}
-
-impl UserData for Scene {
-    fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
-        methods.add_function("AddScene", |lua: &Lua, v: String| {
-            Ok(Self::from_file(*lua, &v))
-        });
-        methods.add_function("PopScene", |lua: &Lua, v: ()| {
-            Ok(EngineSignal::Scenes(SceneSignal::Pop))
-        });
-    }
+    module: Table,
+    env: Lua
+    state: Rc<Table>,
+    init_complete: bool,
 }
 
 impl Scene {
-    pub fn from_file(lua: Lua, path: &str) -> Self {
-        let script = std::fs::read_to_string(path).unwrap();
-        let scene_data: Table = lua.load(&script).eval().unwrap();
-        Self { lua, scene_data }
+    pub fn new(path: &str, state: Rc<Table>) -> Result<Self, Box<dyn std::error::Error>> {
+        let lua: Lua = Lua::new();
+        let script = match std::fs::read_to_string(path) {
+            Err(e) => return Box::new(e),
+            Ok(val) => val,
+        };
+        let module: Table = match lua.load(script).eval() {
+            Err(e) => return Box::new(e),
+            Ok(val) => val,
+        };
+
+        Ok(Self {
+            env: lua,
+            state,
+            module,
+            init_complete: false,
+        })
     }
 }
 impl Scene {
@@ -34,11 +39,12 @@ impl Scene {
         signal: Option<SceneDataMsg>,
         canvas: &Canvas,
     ) -> EngineSignal {
-        return EngineSignal::None;
+        self.init_complete = true;
+        self.module.call_function("init", ()).unwrap()
     }
 
     pub fn is_init(&self) -> bool {
-        true
+        self.init_complete
     }
     pub fn update(
         &mut self,

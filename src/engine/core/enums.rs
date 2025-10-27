@@ -20,10 +20,11 @@ use super::super::super::render::{Canvas, Layer, Object};
 use super::super::Error;
 use super::super::types::Position3D;
 use super::traits::Scene;
-use mlua::UserData;
+use mlua::{FromLua, String as LuaString, Table, UserData};
 use my_term::Terminal;
 use my_term::color::{Background, Foreground};
-use std::any::Any;
+use ron::value;
+use std::any::{Any, type_name_of_val};
 use std::sync::{Arc, atomic::AtomicUsize};
 
 pub enum Signal {
@@ -39,30 +40,90 @@ pub enum Signal {
     Sequence(Vec<Signal>),
 }
 
-impl UserData for Signal {
-    fn add_fields<F: mlua::UserDataFields<Self>>(fields: &mut F) {
-        fields.add_field("None", Self::None);
-        fields.add_field("Quit", Self::Quit);
-        fields.add_field("SceneUp", Self::SceneUp);
-        fields.add_field("SceneDown", Self::SceneDown);
+impl UserData for Signal {}
+impl FromLua for Signal {
+    fn from_lua(value: mlua::Value, lua: &mlua::Lua) -> mlua::Result<Self> {
+        match value {
+            mlua::Value::UserData(ud) => {
+                // Need to log this here
+                Err(mlua::Error::FromLuaConversionError {
+                    from: "UserData",
+                    to: "Signal".into(),
+                    message: Some(format!("a userdata type was returned {:?}", ud)),
+                })
+            }
+            mlua::Value::String(s) => match s {
+                "None" => Ok(Self::None),
+                "Quit" => Ok(Self::Quit),
+                "SceneUp" => Ok(Self::SceneUp),
+                "SceneDown" => Ok(Self::SceneDown),
+                other => Err(mlua::Error::FromLuaConversionError {
+                    from: "string",
+                    to: "Signal".into(),
+                    message: Some(format!("unknown engine signal {}", other)),
+                }),
+            },
+            mlua::Value::Table(t) => match t.get::<String>("type")? {
+                "Scenes" => Ok(Self::Scenes(t.get::<SceneSignal>("value")?)),
+                "Render" => Ok(Self::Render(t.get::<RenderSignal>("value")?)),
+                "Error" => Ok(Self::Error(t.get::<Error>("value")?)),
+                "Batch" => {
+                    let list: mlua::Table = t.get::<mlua::Table>("value")?;
+                    let mut v = Vec::new();
+                    for pair in list.sequence_values::<Signal>() {
+                        v.push(pair?);
+                    }
+                    Ok(Self::Batch(v))
+                }
+                "Sequence" => {
+                    let list: Table = t.get("value")?;
+                    let mut v = Vec::new();
+                    for pair in list.sequence_values::<Signal>() {
+                        v.push(pair?);
+                    }
+                    Ok(Self::Sequence(v))
+                }
+                other => Err(mlua::Error::FromLuaConversionError {
+                    from: other,
+                    to: "Signal".into(),
+                    message: Some(format!("invalid Signal Type {:?}", other)),
+                }),
+            },
+            mlua::Value::Error(e) => Ok(Self::Error(e)),
+            mlua::Value::Nil => Ok(Self::None),
+            other => Err(mlua::Error::FromLuaConversionError {
+                from: type_name_of_val(other),
+                to: "Signal".into(),
+                message: Some(format!("invalid signal value {:?}", other)),
+            }),
+        }
     }
-}
-
-pub enum SceneDataMsg {
-    GameState,
-    Settings,
-    Custom {
-        type_id: String,
-        data: Box<dyn Any + Send + Sync>,
-    },
 }
 
 pub enum SceneSignal {
     Pop,
-    New {
-        scene: Box<dyn Scene>,
-        signal: Option<Box<Signal>>,
-    },
+    New(String),
+}
+
+impl FromLua for SceneSignal {
+    fn from_lua(value: mlua::Value, lua: &mlua::Lua) -> mlua::Result<Self> {
+        match value {
+            mlua::Value::Table(t) => match t.get::<String>("type")? {
+                "Pop" => Ok(Self::Pop),
+                "New" => Ok(Self::New(t.get::<String>("value")?)),
+                other => Err(mlua::Error::FromLuaConversionError {
+                    from: "Table",
+                    to: "Signal".into(),
+                    message: Some(format!("invalid Scene Signal Data type {:?}", other)),
+                }),
+            },
+            other => Err(mlua::Error::FromLuaConversionError {
+                from: type_name_of_val(other),
+                to: "SceneSignal".into(),
+                message: Some(format!("invalid data for SceneSignal {:?}", other)),
+            }),
+        }
+    }
 }
 
 impl UserData for SceneSignal {
@@ -86,6 +147,46 @@ pub enum RenderSignal {
     Clear,
     Batch(Vec<RenderSignal>),
     Sequence(Vec<RenderSignal>),
+}
+
+impl FromLua for RenderSignal {
+    fn from_lua(value: mlua::Value, lua: &mlua::Lua) -> mlua::Result<Self> {
+        match value {
+            mlua::Value::String(s) => match s {
+                "Redraw" => Ok(Self::Redraw),
+                "Clear" => Ok(Self::Clear),
+                other => Err(mlua::Error::FromLuaConversionError {
+                    from: "String",
+                    to: "RenderSignal".into(),
+                    message: Some(format!("invalid data for RenderSignal {:?}", other)),
+                }),
+            },
+            mlua::Value::Table(t) => match t.get::<String>("type")? {
+                "Insert" => {}
+                "Remove" => {}
+                "Move" => {}
+                "MoveLayer" => {}
+                "TermSizeChange" => {}
+                "Foreground" => {}
+                "Background" => {}
+                "MoveCamera" => {}
+                "SetCamera" => {}
+                "Update" => {}
+                "Batch" => {}
+                "Sequence" => {}
+                other => Err(mlua::Error::FromLuaConversionError {
+                    from: "String",
+                    to: "RenderSignal".into(),
+                    message: Some(format!("invalid data for RenderSignal {:?}", other)),
+                }),
+            },
+            other => Err(mlua::Error::FromLuaConversionError {
+                from: "String",
+                to: "RenderSignal".into(),
+                message: Some(format!("invalid data for RenderSignal {:?}", other)),
+            }),
+        }
+    }
 }
 
 impl RenderSignal {
