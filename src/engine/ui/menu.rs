@@ -16,13 +16,14 @@ limitations under the License.
 
 #![deny(unused_variables)]
 
+use std::sync::mpsc;
 use std::sync::{Arc, Weak, atomic::AtomicUsize, mpsc::Sender};
 
 use super::super::render::Canvas;
 use super::{
     super::types::*,
     Border,
-    style::{Measure, Origin, Size, Style},
+    style::{Measure, Size, Style},
 };
 use crate::engine::enums::RenderSignal;
 use crate::engine::render::{Layer, Object, RenderUnitId};
@@ -58,9 +59,6 @@ pub struct Menu<I, O> {
     marker: char,
     style: Style,
     position: Position<i32>,
-    #[allow(unused)]
-    origin: Origin,
-
     items: Vec<Item<I, O>>,
     cursor: usize,
     #[allow(unused)]
@@ -69,40 +67,23 @@ pub struct Menu<I, O> {
 }
 
 impl<I, O> Menu<I, O> {
-    pub fn new(
-        x: i32,
-        y: i32,
-        w: Option<Measure>,
-        h: Option<Measure>,
-        origin: Origin,
-        justify: Justify,
-        align: Align,
-        border: Option<Border>,
-        items: Vec<Item<I, O>>,
-        fg: Option<Foreground>,
-        bg: Option<Background>,
-    ) -> Self {
+    pub fn new(x: i32, y: i32, style: Style, items: Vec<Item<I, O>>) -> Self {
         Self {
             render_id: Weak::new(),
             position: Position { x: x + 1, y: y + 1 },
-            style: Style {
-                size: Size {
-                    width: w,
-                    height: h,
-                },
-                border: border,
-                justify: justify,
-                align: align,
-                foreground: fg,
-                background: bg,
-            },
-            origin: origin,
+            style,
             items: items,
             marker: '>',
             cursor: 0,
             max_per_page: 0,
             _page: 0,
         }
+    }
+
+    pub fn shift(&mut self, x: i32, y: i32, render_tx: &mpsc::Sender<RenderSignal>) {
+        self.position.x += x;
+        self.position.y += y;
+        self.output(render_tx);
     }
 
     pub fn x(&self) -> i32 {
@@ -186,33 +167,13 @@ impl<I, O> Menu<I, O> {
                 self.render_id = Arc::downgrade(&arc_id);
                 render_tx.send(RenderSignal::Insert(
                     arc_id,
-                    Object::static_text(
-                        self.position.as_3d(0),
-                        out,
-                        self.style.justify,
-                        self.style.align,
-                        self.style.size.width,
-                        self.style.size.height,
-                        self.style.border.clone(),
-                        self.style.foreground,
-                        self.style.background,
-                    ),
+                    Object::static_text(self.position.into(), out, self.style.clone()),
                 ));
             }
             Some(arc) => {
                 render_tx.send(RenderSignal::Update(
                     arc,
-                    Object::static_text(
-                        self.position.as_3d(0),
-                        out,
-                        self.style.justify,
-                        self.style.align,
-                        self.style.size.width,
-                        self.style.size.height,
-                        self.style.border.clone(),
-                        self.style.foreground,
-                        self.style.background,
-                    ),
+                    Object::static_text(self.position.into(), out, self.style.clone()),
                 ));
             }
         }

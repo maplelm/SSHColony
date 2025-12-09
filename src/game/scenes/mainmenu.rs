@@ -15,31 +15,35 @@ limitations under the License.
 */
 
 use crate::{
-    engine::traits::Scene,
     engine::{
         enums::{RenderSignal, SceneSignal, Signal},
         input::{Event, KeyEvent},
-        render::Canvas,
+        render::{Canvas, Layer, Object, RenderUnitId},
+        traits::Scene,
         ui::{
             Border, BorderSprite, Menu, MenuItem, Padding, SelectionDirection, Selector,
             SelectorItem, Textbox,
-            style::{Align, Justify, Measure, Origin, Style},
+            style::{self, Align, Justify, Measure, Size, Style},
         },
     },
     game::{LoadGame, Settings},
 };
-use std::sync::mpsc;
 use my_term::color::{Background, Color, Foreground, Iso};
+use std::sync::{Arc, Weak, mpsc};
 
 #[allow(unused)]
+#[derive(Debug)]
 enum Signals {
     None,
     Quit,
     NewScene(Box<dyn Scene>),
 }
 
+#[derive(Debug)]
 pub struct MainMenu {
     menu: Menu<(), Signals>,
+    lg: Option<Arc<logging::Logger>>,
+    err_msg_handle: Option<Arc<RenderUnitId>>,
     init_complete: bool,
 }
 
@@ -49,16 +53,13 @@ impl MainMenu {
             menu: Menu::new(
                 0,
                 0,
-                Some(Measure::Percent(100)),
-                Some(Measure::Percent(100)),
-                Origin::TopLeft,
-                Justify::Center,
-                Align::Center,
-                Some(
-                    Border::from(BorderSprite::String("|#".to_string()), Padding::square(2))
-                        .top(BorderSprite::String("-#".to_string()))
-                        .bottom(BorderSprite::String("-#".to_string())),
-                ),
+                Style::default()
+                    .set_border(Border::as_heavy(Padding::square(1)))
+                    .set_size(Size::rect(Measure::Percent(50), Measure::Percent(50)))
+                    .set_justify(Justify::Center)
+                    .set_align(Align::Center)
+                    .set_fg(Foreground::green(false))
+                    .set_bg(Background::black(false)),
                 vec![
                     MenuItem {
                         label: String::from("Play"),
@@ -73,16 +74,10 @@ impl MainMenu {
                         action: |_| -> Signals { Signals::Quit },
                     },
                 ],
-                Some(Foreground::new(Color::Iso {
-                    color: Iso::Green,
-                    bright: false,
-                })),
-                Some(Background::new(Color::Iso {
-                    color: Iso::Black,
-                    bright: false,
-                })),
             ),
             init_complete: false,
+            lg: None,
+            err_msg_handle: None,
         })
     }
 }
@@ -93,8 +88,10 @@ impl Scene for MainMenu {
         render_tx: &mpsc::Sender<RenderSignal>,
         signal: Option<Signal>,
         _canvas: &Canvas,
+        lg: Arc<logging::Logger>,
     ) -> Signal {
         self.menu.output(render_tx);
+        self.lg = Some(lg);
         self.init_complete = true;
         if let Err(_e) = render_tx.send(RenderSignal::Redraw) {
             // Log that there was a problem
@@ -117,24 +114,60 @@ impl Scene for MainMenu {
         for e in event.try_iter() {
             match e {
                 Event::Keyboard(e) => match e {
+                    KeyEvent::Up => signals.push(Signal::Render(RenderSignal::ScrollUI(1))),
+                    KeyEvent::Down => signals.push(Signal::Render(RenderSignal::ScrollUI(-1))),
+                    KeyEvent::Left => signals.push(Signal::Render(RenderSignal::ShiftUI(1))),
+                    KeyEvent::Right => signals.push(Signal::Render(RenderSignal::ShiftUI(-1))),
                     KeyEvent::Char('q') => {
                         return Signal::Quit;
                     }
                     KeyEvent::Up | KeyEvent::Char('w') => {
                         if self.menu.cursor_up(1) {
                             self.menu.output(render_tx);
+                            let _ = self
+                                .lg
+                                .as_ref()
+                                .unwrap()
+                                .write(logging::LogLevel::Info, "MainMenu cursor up 1");
                         }
                     }
                     KeyEvent::Down | KeyEvent::Char('s') => {
                         if self.menu.cursor_down(1) {
                             self.menu.output(render_tx);
+                            if let Err(e) = self
+                                .lg
+                                .as_ref()
+                                .unwrap()
+                                .write(logging::LogLevel::Info, "MainMenu cursor down 1")
+                            {
+                                let a: Arc<RenderUnitId> = RenderUnitId::new(Layer::Ui);
+                                self.err_msg_handle = Some(a.clone());
+                                render_tx.send(RenderSignal::Insert(
+                                    a,
+                                    Object::static_text(
+                                        crate::engine::types::Position3D { x: 2, y: 30, z: 1 },
+                                        format!("failed to Log Message from mainmenu: {}", e),
+                                        style::Style::default()
+                                            .set_border(Border::as_hash(Padding::square(1))),
+                                    ),
+                                ));
+                            }
                         }
                     }
                     KeyEvent::Right | KeyEvent::Char('d') => match self.menu.execute(()) {
                         Signals::Quit => {
+                            let _ = self
+                                .lg
+                                .as_ref()
+                                .unwrap()
+                                .write(logging::LogLevel::Info, "MainMenu Executing quit action");
                             signals.push(Signal::Quit);
                         }
                         Signals::NewScene(s) => {
+                            let _ = self.lg.as_ref().unwrap().write(
+                                logging::LogLevel::Info,
+                                "MainMenu Executing new scene action",
+                            );
                             signals.push(Signal::Scenes(SceneSignal::New {
                                 scene: s,
                                 signal: None,

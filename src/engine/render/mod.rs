@@ -14,18 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+mod camera;
 mod canvas;
 mod drawable;
 mod enums;
 mod functions;
-mod render_unit;
-mod camera;
 mod render_thread;
+mod render_unit;
+pub mod sprite;
+pub mod text;
 
+pub use camera::Camera;
 pub use canvas::Canvas;
+pub use drawable::{Line, LineSlice};
 pub use enums::*;
 pub use functions::*;
-pub use camera::Camera;
 pub use render_thread::render_thread;
 pub use render_unit::RenderUnitId;
 

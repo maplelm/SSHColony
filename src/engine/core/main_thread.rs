@@ -40,7 +40,7 @@ pub fn start(mut ins: Instance) -> Result<(), Error> {
     let index = ins.game_state.len() - 1;
     if let Some(scene) = ins.game_state.get_mut(index) {
         if !scene.is_init() {
-            scene.init(&render_tx, None, &ins.canvas);
+            scene.init(&render_tx, None, &ins.canvas, ins.logger.clone());
         }
     }
 
@@ -109,6 +109,7 @@ fn dispatch(
                         Some(*(signal.unwrap()))
                     },
                     &ins.canvas,
+                    ins.logger.clone(),
                 );
                 match dispatch(ins, sig, render_tx) {
                     Ok(i) => ins = i,

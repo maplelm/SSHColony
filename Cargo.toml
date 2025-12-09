@@ -17,5 +17,6 @@ libc = "0.2"
 serde = { version = "1.0.224", features = ["derive"] }
 ron = "0.11.0"
 bincode = { version = "2.0.1", features = ["serde"] }
-my_term = "0.0.1"
+my_term = {"path" = "../crates/my_term/"}
+logging = {"path" = "../crates/logging/"}
 chrono = "0.4.42"

@@ -20,6 +20,9 @@ use crate::engine::render::clear as render_clear;
 use crate::engine::traits::Scene;
 use crate::engine::ui::BorderSprite as Bsprite;
 use crate::engine::ui::MenuItem;
+use crate::engine::ui::style::Size;
+use crate::engine::ui::style::Style;
+use crate::game::scenes::CreateWorld;
 use crate::game::scenes::PlayGame;
 
 use super::super::types::World;
@@ -28,17 +31,20 @@ use crate::engine::{
     render::Canvas,
     ui::{
         Border, Menu, Padding,
-        style::{Align, Justify, Measure, Origin},
+        style::{Align, Justify, Measure},
     },
 };
 use std::fs::{self, DirEntry};
 use std::path::Path;
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::{
+    Arc,
+    mpsc::{Receiver, Sender},
+};
 
+#[derive(Debug)]
 enum Signal {
     None,
     NewWorld,
-    TestWorld,
     LoadWorld(String),
     WorldData(World),
     Back,
@@ -60,6 +66,7 @@ struct NewWorldForm {
     hard_core: bool,
 }
 
+#[derive(Debug)]
 pub struct LoadGame {
     menu: Menu<(), Signal>,
     is_init: bool,
@@ -70,21 +77,14 @@ impl LoadGame {
             menu: Menu::<(), Signal>::new(
                 0,
                 0,
-                Some(Measure::Percent(100)),
-                Some(Measure::Percent(100)), //Some(Measure::Percent(100)),
-                Origin::TopLeft,
-                Justify::Center,
-                Align::Center,
-                Some(Border::from(
-                    Bsprite::String("#%".to_string()),
-                    Padding::square(2),
-                )),
+                Style::default()
+                    .set_size(Size::rect(Measure::Percent(100), Measure::Percent(100)))
+                    .set_justify(Justify::Center)
+                    .set_border(Border::as_block(Padding::square(1))),
                 vec![
-                    MenuItem::new("Play Now".to_string(), |z| Signal::TestWorld),
+                    MenuItem::new("Play Now".to_string(), |z| Signal::NewWorld),
                     MenuItem::new("Back".to_string(), |z| Signal::Back),
                 ],
-                None,
-                None,
             ),
             is_init: false,
         })
@@ -97,6 +97,7 @@ impl Scene for LoadGame {
         render_tx: &Sender<RenderSignal>,
         signal: Option<EngineSignal>,
         canvas: &Canvas,
+        lg: Arc<logging::Logger>,
     ) -> EngineSignal {
         if let Err(_e) = render_clear(render_tx) {
             // log that there was a problem clearing the screen
@@ -116,12 +117,16 @@ impl Scene for LoadGame {
     fn reset(&mut self) {}
 
     fn resume(&mut self, render_tx: &Sender<RenderSignal>, canvas: &Canvas) {
-        render_tx.send(RenderSignal::Clear);
+        if let Err(_e) = render_tx.send(RenderSignal::Clear) {
+            // Log that there was an error
+        }
         self.menu.output(render_tx);
     }
 
     fn suspend(&mut self, render_tx: &Sender<RenderSignal>) {
-        render_tx.send(RenderSignal::Clear);
+        if let Err(_e) = render_tx.send(RenderSignal::Clear) {
+            // Log that there was an error
+        }
     }
 
     fn update(
@@ -149,9 +154,9 @@ impl Scene for LoadGame {
                         Signal::Back => {
                             batch.push(EngineSignal::Scenes(crate::engine::enums::SceneSignal::Pop))
                         }
-                        Signal::TestWorld => batch.push(EngineSignal::Scenes(
+                        Signal::NewWorld => batch.push(EngineSignal::Scenes(
                             crate::engine::enums::SceneSignal::New {
-                                scene: PlayGame::new(),
+                                scene: CreateWorld::new(),
                                 signal: None,
                             },
                         )),

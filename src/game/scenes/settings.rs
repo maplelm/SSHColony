@@ -29,6 +29,7 @@ use std::{
     sync::{Arc, Weak, atomic::AtomicUsize, mpsc},
 };
 
+#[derive(Debug)]
 pub struct Settings {
     text_handle: Weak<RenderUnitId>,
     init_complete: bool,
@@ -49,24 +50,10 @@ impl Scene for Settings {
         render_tx: &mpsc::Sender<RenderSignal>,
         signal: Option<Signal>,
         canvas: &Canvas,
+        lg: Arc<logging::Logger>,
     ) -> Signal {
         render_tx.send(RenderSignal::Clear);
-        let arc_new = Arc::<RenderUnitId>::new(RenderUnitId::Ui(AtomicUsize::new(0)));
-        self.text_handle = Arc::downgrade(&arc_new);
-        let obj = Object::static_text(
-            Position3D { x: 1, y: 1, z: 0 },
-            "Settings!".to_string(),
-            Justify::Left,
-            Align::Top,
-            None,
-            None,
-            None,
-            None,
-            None,
-        );
-        render_tx.send(RenderSignal::Insert(arc_new, obj));
         self.init_complete = true;
-
         Signal::None
     }
     fn is_init(&self) -> bool {

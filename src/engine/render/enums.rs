@@ -13,32 +13,25 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-use super::{Canvas, drawable::*};
-use crate::engine::{
-    traits::Storeable,
-    types as enginetypes,
-    ui::style::{Align, Justify, Measure},
+use super::super::traits::Storeable;
+use super::super::types::{self as enginetypes, Position};
+use super::{
+    super::ui::style::{Align, Justify, Measure, Style},
+    Camera, Canvas,
+    sprite::{self, Glyph, Sprite},
+    text::Textbox,
 };
 use crate::engine::{types::Position3D, ui::Border};
+use my_term::Character;
+use my_term::color::{Background, Foreground};
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::Display,
     sync::{atomic::AtomicUsize, mpsc},
     time::{Duration, Instant},
 };
-use my_term::color::{Background, Foreground};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Static {
-    Sprite(StaticSprite),
-    Text(StaticText),
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Dynamic {
-    Sprite(DynamicSprite),
-    Text(DynamicText),
-}
+type ObjPosition = Position3D<i32>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Ui {
@@ -50,49 +43,150 @@ pub enum Ui {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Object {
-    Static(Static),
-    Dynamic(Dynamic),
+    Sprite(Sprite),
+    Text(Textbox),
 }
 
 impl Object {
-    pub fn pos(&self) -> Position3D<i32> {
+    pub fn pos(&self) -> ObjPosition {
         match self {
-            Self::Static(s) => match s {
-                Static::Sprite(s) => s.pos,
-                Static::Text(t) => t.pos,
+            Self::Sprite(s) => match s {
+                Sprite::Static(s) => s.pos,
+                Sprite::Dynamic(d) => d.pos,
             },
-            Self::Dynamic(d) => match d {
-                Dynamic::Sprite(s) => s.pos,
-                Dynamic::Text(t) => t.pos,
+            Self::Text(t) => match t {
+                Textbox::Static(s) => s.pos,
+                Textbox::Dynamic(d) => d.pos,
             },
         }
     }
 
-    pub fn line_count(&self, canvas: &Canvas) -> Option<usize> {
+    pub fn width(&self, can: &Canvas) -> usize {
         match self {
-            Self::Static(s) => match s {
-                Static::Sprite(_) => None,
-                Static::Text(t) => Some(t.line_count(canvas)),
-            },
-            Self::Dynamic(d) => match d {
-                Dynamic::Sprite(_) => None,
-                Dynamic::Text(t) => Some(t.line_count(canvas)),
-            },
+            Self::Sprite(s) => s.width(),
+            Self::Text(t) => t.width(can),
         }
     }
 
-    pub fn has_color(&self) -> bool {
+    pub fn height(&self, can: &Canvas) -> usize {
         match self {
-            Self::Static(s) => match s {
-                Static::Sprite(s) => s.base.fg.is_some() || s.base.bg.is_some(),
-                Static::Text(t) => t.base.fg().is_some() || t.base.bg().is_some(),
+            Self::Sprite(s) => s.height(),
+            Self::Text(t) => t.height(can),
+        }
+    }
+
+    pub fn draw(&mut self, can: &Canvas, cam: &Camera, output: &mut String, reset: &str) {
+        if !cam.in_view(self, can) {
+            return;
+        }
+
+        let pos = cam.get_screen_pos(self.pos());
+        let l_offset = if pos.x < 0 { pos.x.abs() } else { 0 };
+        let r_offset = if pos.x + self.width(can) as i32 > can.width as i32 {
+            pos.x + self.width(can) as i32 - can.width as i32
+        } else {
+            0
+        };
+        let t_offset = if pos.y < 0 { pos.y.abs() } else { 0 };
+        let b_offset = if pos.y + self.height(can) as i32 > can.height as i32 {
+            pos.y + self.height(can) as i32 - can.height as i32
+        } else {
+            0
+        };
+
+        output.push_str(&format!("\x1b[{};{}f", pos.x + l_offset, pos.y + b_offset));
+        match self {
+            Self::Sprite(s) => match s {
+                Sprite::Static(s) => match &s.base.sprite {
+                    Glyph::Small(c) => output.push_str(&format!("{}", c)),
+                    Glyph::Block(b) => {
+                        for (i, l) in b.iter().enumerate() {
+                            if i == 0 {
+                                output.push_str(&format!(
+                                    "{}",
+                                    l.slice(l_offset as usize, l.len() - r_offset as usize)
+                                ));
+                            } else {
+                                output.push_str(&format!(
+                                    "\x1b[{};{}f{}",
+                                    pos.x + l_offset + i as i32,
+                                    pos.y + b_offset + i as i32,
+                                    l.slice(l_offset as usize, l.len() - r_offset as usize)
+                                ));
+                            }
+                        }
+                    }
+                },
+                Sprite::Dynamic(d) => match &d.frames[d.cursor].sprite {
+                    Glyph::Small(c) => output.push_str(&format!("{}", c)),
+                    Glyph::Block(b) => {
+                        for (i, l) in b.iter().enumerate() {
+                            if i == 0 {
+                                output.push_str(&format!(
+                                    "{}",
+                                    l.slice(l_offset as usize, l.len() - r_offset as usize)
+                                ));
+                            } else {
+                                output.push_str(&format!(
+                                    "\x1b[{};{}f{}",
+                                    pos.x + l_offset + i as i32,
+                                    pos.y + b_offset + i as i32,
+                                    l.slice(l_offset as usize, l.len() - r_offset as usize)
+                                ));
+                            }
+                        }
+                    }
+                },
             },
-            Self::Dynamic(d) => match d {
-                Dynamic::Sprite(s) => {
-                    s.sprite_sheet[s.cursor].fg.is_some() || s.sprite_sheet[s.cursor].bg.is_some()
+            Self::Text(t) => match t {
+                Textbox::Static(s) => {
+                    for (i, l) in s
+                        .base
+                        .slice(
+                            t_offset as usize,
+                            b_offset as usize,
+                            l_offset as usize,
+                            r_offset as usize,
+                        )
+                        .lines
+                        .iter()
+                        .enumerate()
+                    {
+                        if i == 0 {
+                            output.push_str(&format!("{l}"));
+                        } else {
+                            output.push_str(&format!(
+                                "\x1b[{};{}f{}",
+                                pos.x + l_offset + i as i32,
+                                pos.y + b_offset + i as i32,
+                                l
+                            ));
+                        }
+                    }
                 }
-                Dynamic::Text(t) => {
-                    t.text_sheet[t.cursor].fg().is_some() || t.text_sheet[t.cursor].bg().is_some()
+                Textbox::Dynamic(d) => {
+                    for (i, l) in d.frames[d.cursor]
+                        .slice(
+                            t_offset as usize,
+                            b_offset as usize,
+                            l_offset as usize,
+                            r_offset as usize,
+                        )
+                        .lines
+                        .iter()
+                        .enumerate()
+                    {
+                        if i == 0 {
+                            output.push_str(&format!("{l}"));
+                        } else {
+                            output.push_str(&format!(
+                                "\x1b[{};{}f{}",
+                                pos.x + l_offset + i as i32,
+                                pos.y + b_offset + i as i32,
+                                l
+                            ));
+                        }
+                    }
                 }
             },
         }
@@ -100,142 +194,43 @@ impl Object {
 
     pub fn is_sprite(&self) -> bool {
         match self {
-            Self::Static(s) => match s {
-                Static::Sprite(_) => true,
-                _ => false,
-            },
-            Self::Dynamic(d) => match d {
-                Dynamic::Sprite(_) => true,
-                _ => false,
-            },
+            Self::Sprite(_) => true,
+            _ => false,
         }
     }
 
     pub fn is_text(&self) -> bool {
         match self {
-            Self::Static(s) => match s {
-                Static::Text(_) => true,
-                _ => false,
-            },
-            Self::Dynamic(d) => match d {
-                Dynamic::Text(_) => true,
-                _ => false,
-            },
+            Self::Text(_) => true,
+            _ => false,
         }
     }
 
-    pub fn shift(&mut self, pos: Position3D<i32>) {
+    pub fn move_pos(&mut self, pos: Position3D<i32>) {
         match self {
-            Self::Static(s) => match s {
-                Static::Sprite(s) => {
-                    s.pos.x += pos.x;
-                    s.pos.y += pos.y;
-                    s.pos.z += pos.z;
-                }
-                Static::Text(t) => {
-                    t.pos.x += pos.x;
-                    t.pos.y += pos.y;
-                    t.pos.z += pos.z;
-                }
-            },
-            Self::Dynamic(d) => match d {
-                Dynamic::Sprite(s) => {
-                    s.pos.x += pos.x;
-                    s.pos.y += pos.y;
-                    s.pos.z += pos.z;
-                }
-                Dynamic::Text(t) => {
-                    t.pos.x += pos.x;
-                    t.pos.y += pos.y;
-                    t.pos.z += pos.z;
-                }
-            },
+            Self::Sprite(s) => s.move_pos(pos),
+            Self::Text(t) => t.move_pos(pos),
         }
-    }
-
-    pub fn as_str(&mut self, canvas: &Canvas) -> &str {
-        match self {
-            Self::Static(s) => match s {
-                Static::Sprite(s) => s.as_str(),
-                Static::Text(t) => t.as_str(canvas),
-            },
-            Self::Dynamic(d) => match d {
-                Dynamic::Sprite(s) => s.as_str(),
-                Dynamic::Text(t) => t.as_str(canvas),
-            },
-        }
-    }
-
-    pub fn static_sprite(
-        pos: Position3D<i32>,
-        sym: char,
-        fg: Option<Foreground>,
-        bg: Option<Background>,
-    ) -> Self {
-        Self::Static(Static::Sprite(StaticSprite {
-            pos: pos,
-            base: SpriteBase::new(sym, fg, bg),
-        }))
-    }
-
-    pub fn dyn_sprite(pos: Position3D<i32>, tick: Duration, sheet: Vec<SpriteBase>) -> Self {
-        Self::Dynamic(Dynamic::Sprite(DynamicSprite {
-            pos: pos,
-            sprite_sheet: sheet,
-            tick: tick,
-            cursor: 0,
-            last_tick: Instant::now(),
-        }))
-    }
-
-    pub fn static_text(
-        pos: Position3D<i32>,
-        text: String,
-        justify: Justify,
-        align: Align,
-        width: Option<Measure>,
-        height: Option<Measure>,
-        border: Option<Border>,
-        fg: Option<Foreground>,
-        bg: Option<Background>,
-    ) -> Self {
-        Self::Static(Static::Text(StaticText {
-            pos: pos,
-            base: TextBase::new(text, justify, align, width, height, border, fg, bg),
-        }))
-    }
-
-    pub fn dyn_text(pos: Position3D<i32>, sheet: Vec<TextBase>, tick: Duration) -> Self {
-        Self::Dynamic(Dynamic::Text(DynamicText {
-            pos: pos,
-            text_sheet: sheet,
-            tick: tick,
-            cursor: 0,
-            last_tick: Instant::now(),
-        }))
     }
 
     pub fn is_dynamic(&self) -> bool {
         match self {
-            Self::Dynamic(_) => true,
-            _ => false,
+            Self::Sprite(s) => s.is_dynamic(),
+            Self::Text(t) => t.is_dynamic(),
         }
     }
 
     pub fn is_static(&self) -> bool {
         match self {
-            Self::Static(_) => true,
-            _ => false,
+            Self::Sprite(s) => s.is_static(),
+            Self::Text(t) => t.is_static(),
         }
     }
 
     pub fn update(&mut self) -> bool {
         match self {
-            Self::Static(_) => false,
-            Self::Dynamic(d) => match d {
-                Dynamic::Sprite(s) => s.update(),
-                Dynamic::Text(t) => t.update(),
-            },
+            Self::Sprite(s) => s.update(),
+            Self::Text(t) => t.update(),
         }
     }
 }

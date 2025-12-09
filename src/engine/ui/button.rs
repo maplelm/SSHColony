@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-use crate::engine::ui::style::Style;
+use crate::engine::ui::style::{Coloring, Style};
 use crate::engine::{enums::RenderSignal, types::Position};
 use std::sync::{Arc, Weak, atomic::AtomicUsize, mpsc::Sender};
 
@@ -22,42 +22,32 @@ use super::{
     Border, BorderSprite,
     style::{Align, Justify, Measure},
 };
-use crate::engine::render::{Layer, Object, RenderUnitId};
+use crate::engine::render::{Layer, Object, RenderUnitId, text, Line};
 use my_term::color::{Background, Foreground};
 
 pub struct Button<I, O> {
     render_id: Weak<RenderUnitId>,
-    text: String,
+    text: Vec<Line>,
     pos: Position<i32>,
     style: Style,
-    select_foreground: Option<Foreground>,
-    select_background: Option<Background>,
+    select_color: Coloring,
     selected: bool,
     action: fn(I) -> O,
 }
 
 impl<I, O> Button<I, O> {
     pub fn new(
-        render_id: Weak<RenderUnitId>,
-        text: String,
-        x: i32,
-        y: i32,
-        style: Option<Style>,
-        sfg: Option<Foreground>,
-        sbg: Option<Background>,
+        pos: Position<i32>,
+        text: Vec<Line>,
+        select_color: Coloring,
         action: fn(I) -> O,
     ) -> Self {
         Self {
             render_id: Weak::new(),
-            text: text,
-            pos: Position { x: x, y: y },
-            style: if let Some(s) = style {
-                s
-            } else {
-                Style::default()
-            },
-            select_foreground: sfg,
-            select_background: sbg,
+            text,
+            pos: Position { x: pos.x, y: pos.y },
+            style: Style::default(),
+            select_color,
             selected: false,
             action: action,
         }
@@ -69,17 +59,11 @@ impl<I, O> Button<I, O> {
             Some(arc_id) => {
                 render_tx.send(RenderSignal::Update(
                     arc_id,
-                    Object::static_text(
-                        self.pos.as_3d(0),
-                        self.text.clone(),
-                        self.style.justify,
-                        self.style.align,
-                        self.style.size.width,
-                        self.style.size.height,
-                        self.style.border.clone(),
-                        fg,
-                        bg,
-                    ),
+                    Object::Text(text::Textbox::Static(text::Static{
+                        pos: self.pos,
+                        base: text::Base::new(lines, style, can)
+                    }))
+                    Object::static_text(self.pos.into(), self.text.clone(), self.style.clone()),
                 ));
             }
             None => {
@@ -87,27 +71,17 @@ impl<I, O> Button<I, O> {
                 self.render_id = Arc::downgrade(&arc_id);
                 render_tx.send(RenderSignal::Insert(
                     arc_id,
-                    Object::static_text(
-                        self.pos.as_3d(0),
-                        self.text.clone(),
-                        self.style.justify,
-                        self.style.align,
-                        self.style.size.width,
-                        self.style.size.height,
-                        self.style.border.clone(),
-                        fg,
-                        bg,
-                    ),
+                    Object::static_text(self.pos.into(), self.text.clone(), self.style.clone()),
                 ));
             }
         }
     }
 
-    fn color_output_init(&self) -> (Option<Foreground>, Option<Background>) {
+    fn color_output_init(&self) -> (Option<&Foreground>, Option<&Background>) {
         if self.selected {
-            (self.select_foreground, self.select_background)
+            (self.select_color.fg(), self.select_color.bg())
         } else {
-            (self.style.foreground, self.style.background)
+            (self.style.fg(), self.style.bg())
         }
     }
 

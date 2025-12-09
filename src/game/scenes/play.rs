@@ -20,14 +20,16 @@ use crate::engine::{
     render::Canvas,
     traits::Scene,
 };
-use std::sync::mpsc;
+use std::sync::{Arc, mpsc};
 
+#[derive(Debug)]
 enum Signals {
     Exit,
     Save,
     Pause,
 }
 
+#[derive(Debug)]
 pub struct PlayGame {
     init_complete: bool,
     paused: bool,
@@ -47,6 +49,7 @@ impl Scene for PlayGame {
         render_tx: &mpsc::Sender<RenderSignal>,
         signal: Option<EngineSignal>,
         _canvas: &Canvas,
+        lg: Arc<logging::Logger>,
     ) -> EngineSignal {
         EngineSignal::None
     }

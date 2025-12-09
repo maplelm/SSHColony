@@ -14,7 +14,61 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+use std::fmt::Display;
+
+use my_term::color::{Background, Foreground, Iso};
 use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Coloring {
+    pub foreground: Foreground,
+    pub background: Background,
+}
+
+impl Coloring {
+    pub fn new(fg: &Foreground, bg: &Background) -> Self {
+        Self {
+            foreground: (*fg).clone(),
+            background: (*bg).clone(),
+        }
+    }
+    pub fn set_fg(mut self, fg: Foreground) -> Self {
+        self.foreground = fg;
+        self
+    }
+
+    pub fn set_bg(mut self, bg: Background) -> Self {
+        self.background = bg;
+        self
+    }
+
+    pub fn is_colored(&self) -> bool {
+        !self.foreground.is_none() || !self.background.is_none()
+    }
+
+    pub fn has_fg(&self) -> bool {
+        !self.foreground.is_none()
+    }
+
+    pub fn has_bg(&self) -> bool {
+        !self.background.is_none()
+    }
+}
+
+impl Default for Coloring {
+    fn default() -> Self {
+        Self {
+            foreground: Foreground::none(),
+            background: Background::none(),
+        }
+    }
+}
+
+impl Display for Coloring {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.background, self.foreground)
+    }
+}
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Measure {
@@ -38,13 +92,49 @@ impl Measure {
     }
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum Origin {
-    TopLeft,
-    TopRight,
-    BottomLeft,
-    BottomRight,
-    Center,
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Alignment {
+    pub justify: Justify,
+    pub align: Align,
+}
+
+impl Alignment {
+    pub fn centered() -> Self {
+        Self {
+            justify: Justify::Center,
+            align: Align::Center,
+        }
+    }
+
+    pub fn top_right() -> Self {
+        Self {
+            justify: Justify::Right,
+            align: Align::Top,
+        }
+    }
+
+    pub fn bot_left() -> Self {
+        Self {
+            justify: Justify::Left,
+            align: Align::Bottom,
+        }
+    }
+
+    pub fn bot_right() -> Self {
+        Self {
+            justify: Justify::Right,
+            align: Align::Bottom,
+        }
+    }
+}
+
+impl Default for Alignment {
+    fn default() -> Self {
+        Self {
+            justify: Justify::Left,
+            align: Align::Top,
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -65,6 +155,52 @@ pub enum Align {
 pub struct Size {
     pub width: Option<Measure>,
     pub height: Option<Measure>,
+}
+
+impl Size {
+    pub fn new(w: Option<Measure>, h: Option<Measure>) -> Self {
+        Self {
+            width: w,
+            height: h,
+        }
+    }
+
+    pub fn w_only(w: Measure) -> Self {
+        Self {
+            width: Some(w),
+            height: None,
+        }
+    }
+
+    pub fn h_only(h: Measure) -> Self {
+        Self {
+            width: None,
+            height: Some(h),
+        }
+    }
+
+    pub fn square(size: Measure) -> Self {
+        Self {
+            width: Some(size),
+            height: Some(size),
+        }
+    }
+
+    pub fn rect(width: Measure, height: Measure) -> Self {
+        Self {
+            width: Some(width),
+            height: Some(height),
+        }
+    }
+}
+
+impl Default for Size {
+    fn default() -> Self {
+        Self {
+            width: None,
+            height: None,
+        }
+    }
 }
 
 #[cfg(test)]

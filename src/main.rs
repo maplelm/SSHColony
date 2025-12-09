@@ -33,7 +33,11 @@ use game::MainMenu;
 use ron;
 
 fn main() -> ExitCode {
-    match engine::start(Instance::new(MainMenu::new())) {
+    match engine::start(Instance::new(
+        MainMenu::new(),
+        "./logs/",
+        logging::LogLevel::Debug,
+    )) {
         Ok(_) => return ExitCode::SUCCESS,
         Err(e) => {
             println!("Error While Running Game, {}", e);

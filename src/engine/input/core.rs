@@ -20,6 +20,7 @@ use super::consts::*;
 
 pub type InputBuffer = [u8; MAX_INPUT_LEN];
 
+#[derive(Clone, Copy)]
 pub enum KeyEvent {
     Char(char),    // Any Printable Values
     Control(char), // Contrl + Printable Value
@@ -35,6 +36,7 @@ pub enum KeyEvent {
     F(u8), //F1-12
 }
 
+#[derive(Clone)]
 pub enum OtherEvent {
     EnterFocus,
     LeaveFocus,
@@ -51,21 +53,25 @@ const SGR_LEFT_CLICK: MouseButtonValue = 6;
 const SGR_RIGHT_CLICK: MouseButtonValue = 7;
 const SGR_MIDDLE_CLICK: MouseButtonValue = 8;
 
+#[derive(Clone, Copy)]
 pub enum MouseEvent {
     Pressed(MouseData),
     Release(MouseData),
     Move(MouseData),
 }
 
+#[derive(Clone, Copy)]
 pub struct MouseData {
     button: MouseButton,
     pos: MousePos,
 }
+
+#[derive(Clone, Copy)]
 pub struct MousePos {
     x: u16,
     y: u16,
 }
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum MouseButton {
     None,
     Left,
@@ -216,6 +222,7 @@ fn parse_mouse_event(seq: &[u8]) -> Option<MouseEvent> {
     }
 }
 
+#[derive(Clone)]
 pub enum Event {
     Keyboard(KeyEvent),
     Mouse(MouseEvent),

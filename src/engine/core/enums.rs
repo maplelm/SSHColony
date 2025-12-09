@@ -20,12 +20,12 @@ use super::super::super::render::{Canvas, Layer, Object};
 use super::super::Error;
 use super::super::types::Position3D;
 use super::traits::Scene;
-use std::sync::{Arc, atomic::AtomicUsize};
-use std::any::Any;
 use my_term::Terminal;
 use my_term::color::{Background, Foreground};
+use std::any::Any;
+use std::sync::{Arc, atomic::AtomicUsize};
 
-#[derive(Send, Sync, Debug)]
+#[derive(Debug)]
 pub enum Signal {
     None,
     Quit,
@@ -37,16 +37,17 @@ pub enum Signal {
     Sequence(Vec<Signal>),
 }
 
-#[derive(Send, Sync, Debug)]
+#[derive(Debug)]
 pub enum SceneDataMsg {
     GameState,
     Settings,
     Custom {
         type_id: String,
-        data: Box<dyn Any + Send + Sync>
-    }
+        data: Box<dyn Any + Send + Sync>,
+    },
 }
 
+#[derive(Debug)]
 pub enum SceneSignal {
     Pop,
     New {
@@ -55,6 +56,7 @@ pub enum SceneSignal {
     },
 }
 
+#[derive(Debug)]
 pub enum RenderSignal {
     Insert(Arc<RenderUnitId>, Object),
     Remove(Arc<RenderUnitId>),
@@ -64,6 +66,9 @@ pub enum RenderSignal {
     Foreground(Foreground),
     Background(Background),
     MoveCamera(Position3D<i32>),
+    PageUI(i32),
+    ScrollUI(i32),
+    ShiftUI(i32),
     SetCamera(Position3D<i32>),
     Update(Arc<RenderUnitId>, Object),
     Redraw,
@@ -76,10 +81,10 @@ impl RenderSignal {
     // Marking as test as I don't want to be checking Signals like this for any reason other then
     // testing
     #[cfg(test)]
-    pub fn as_str(&mut self, canvas: &Canvas) -> Option<&str> {
+    pub fn as_str(&mut self, canvas: &Canvas) -> Option<String> {
         match self {
-            RenderSignal::Insert(_, obj) => Some(obj.as_str(canvas)),
-            RenderSignal::Update(_, obj) => Some(obj.as_str(canvas)),
+            RenderSignal::Insert(_, obj) => Some(obj.to_string(canvas)),
+            RenderSignal::Update(_, obj) => Some(obj.to_string(canvas)),
             _ => None,
         }
     }

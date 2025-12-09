@@ -24,7 +24,12 @@ use crate::{
     },
     game::types::World,
 };
-use std::{marker::PhantomData, sync::mpsc};
+use std::{
+    marker::PhantomData,
+    sync::{Arc, mpsc},
+};
+
+#[derive(Debug)]
 pub struct InGame {
     world: World,
     init_complete: bool,
@@ -70,6 +75,7 @@ impl Scene for InGame {
         _render_tx: &mpsc::Sender<RenderSignal>,
         signal: Option<Signal>,
         canvas: &Canvas,
+        lg: Arc<logging::Logger>,
     ) -> Signal {
         let _ = self.world.generate(None);
         self.init_complete = true;

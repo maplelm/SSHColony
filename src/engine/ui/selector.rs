@@ -17,37 +17,42 @@ limitations under the License.
 use super::super::enums::RenderSignal;
 use super::Border;
 use crate::engine::types::Position;
+use crate::engine::ui::style::Style;
 use crate::engine::{
     render::{Canvas, Layer, Object, RenderUnitId},
-    ui::style::Measure,
+    ui::style::{Coloring, Measure},
 };
-use std::sync::{Arc, Weak, mpsc::Sender};
 use my_term::color::{Background, Foreground};
+use std::sync::mpsc::SendError;
+use std::sync::{Arc, Weak, mpsc::Sender};
 
+#[derive(Debug)]
 pub struct SelectorItem {
     pub label: String,
     pub value: usize,
 }
 
+impl SelectorItem {
+    pub fn new(l: String, v: usize) -> Self {
+        Self { label: l, value: v }
+    }
+}
+
+#[derive(Debug)]
 pub enum SelectionDirection {
     Vertical,
     Horizontal,
 }
 
+#[derive(Debug)]
 pub struct Selector {
     pub render_id: Weak<RenderUnitId>,
     pos: Position<i32>,
-    width: Option<Measure>,
-    height: Option<Measure>,
+    style: Style,
     items: Vec<SelectorItem>,
-    select_foreground: Option<Foreground>,
-    select_background: Option<Background>,
-    hover_foreground: Option<Foreground>,
-    hover_background: Option<Background>,
-    foreground: Option<Foreground>,
-    background: Option<Background>,
+    select_color: Coloring,
+    hover_color: Coloring,
     direction: SelectionDirection,
-    border: Option<Border>,
     selected: Option<usize>,
     cursor: usize,
 }
@@ -56,32 +61,20 @@ impl Selector {
     pub fn new(
         x: i32,
         y: i32,
-        width: Option<Measure>,
-        height: Option<Measure>,
-        select_fg: Option<Foreground>,
-        select_bg: Option<Background>,
-        hover_fg: Option<Foreground>,
-        hover_bg: Option<Background>,
-        fg: Option<Foreground>,
-        bg: Option<Background>,
+        style: Style,
+        select_color: Coloring,
+        hover_color: Coloring,
         direction: SelectionDirection,
-        border: Option<Border>,
         items: Vec<SelectorItem>,
     ) -> Self {
         Self {
             render_id: Weak::new(),
             pos: Position { x: x, y: y },
-            width: width,
-            height: height,
+            style,
+            select_color,
+            hover_color,
             items: items,
-            border: border,
             direction: direction,
-            select_foreground: select_fg,
-            select_background: select_bg,
-            hover_foreground: hover_fg,
-            hover_background: hover_bg,
-            foreground: fg,
-            background: bg,
             cursor: 0,
             selected: None,
         }
@@ -103,29 +96,22 @@ impl Selector {
         }
     }
 
-    fn selected_item(
-        s: &str,
-        output: &mut String,
-        fg: Option<Foreground>,
-        bg: Option<Background>,
-        sfg: Option<Foreground>,
-        sbg: Option<Background>,
-    ) {
-        if let Some(fg) = sfg {
+    fn selected_item(s: &str, output: &mut String, base_color: &Coloring, select_color: &Coloring) {
+        if let Some(fg) = select_color.fg() {
             output.push_str(&fg.to_ansi());
         }
-        if let Some(bg) = sbg {
+        if let Some(bg) = select_color.bg() {
             output.push_str(&bg.to_ansi());
         }
         output.push_str(s);
-        if let Some(fg) = fg {
+        if let Some(fg) = base_color.fg() {
             output.push_str(&fg.to_ansi());
-        } else if sfg.is_some() {
+        } else if select_color.fg().is_some() {
             output.push_str("\x1b[39m");
         }
-        if let Some(bg) = bg {
+        if let Some(bg) = base_color.bg() {
             output.push_str(&bg.to_ansi());
-        } else if sbg.is_some() {
+        } else if select_color.bg().is_some() {
             output.push_str("\x1b[49m");
         }
     }
@@ -137,10 +123,8 @@ impl Selector {
                 Selector::selected_item(
                     each.label.as_str(),
                     &mut output,
-                    self.foreground,
-                    self.background,
-                    self.select_foreground,
-                    self.select_background,
+                    &self.style.color,
+                    &self.select_color,
                 );
             } else {
                 output.push_str(&each.label);
@@ -159,10 +143,8 @@ impl Selector {
                 Selector::selected_item(
                     each.label.as_str(),
                     &mut output,
-                    self.foreground,
-                    self.background,
-                    self.select_foreground,
-                    self.select_background,
+                    &self.style.color,
+                    &self.select_color,
                 );
             } else {
                 output.push_str(&each.label);
@@ -174,48 +156,37 @@ impl Selector {
         output
     }
 
-    pub fn output(&mut self, render_tx: &Sender<RenderSignal>) {
-        if let Err(err) = match self.render_id.upgrade() {
+    pub fn output(
+        &mut self,
+        render_tx: &Sender<RenderSignal>,
+    ) -> Result<(), SendError<RenderSignal>> {
+        match self.render_id.upgrade() {
             None => {
                 let arc_id = RenderUnitId::new(Layer::Ui);
                 self.render_id = Arc::downgrade(&arc_id);
                 render_tx.send(RenderSignal::Insert(
                     arc_id,
                     Object::static_text(
-                        self.pos.as_3d(0),
+                        self.pos.into(),
                         match self.direction {
                             SelectionDirection::Vertical => self.render_vertically(),
                             SelectionDirection::Horizontal => self.render_horizontally(),
                         },
-                        super::style::Justify::Center,
-                        super::style::Align::Center,
-                        self.width,
-                        self.height,
-                        self.border.clone(),
-                        self.foreground,
-                        self.background,
+                        self.style.clone(),
                     ),
                 ))
             }
             Some(arc) => render_tx.send(RenderSignal::Update(
                 arc,
                 Object::static_text(
-                    self.pos.as_3d(0),
+                    self.pos.into(),
                     match self.direction {
                         SelectionDirection::Vertical => self.render_vertically(),
                         SelectionDirection::Horizontal => self.render_horizontally(),
                     },
-                    super::style::Justify::Center,
-                    super::style::Align::Center,
-                    self.width,
-                    self.height,
-                    self.border.clone(),
-                    self.foreground,
-                    self.background,
+                    self.style.clone(),
                 ),
             )),
-        } {
-            // Log this error
         }
     }
 
@@ -246,16 +217,10 @@ mod test {
         let mut s = Selector::new(
             0,
             0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
+            Style::default(),
+            Coloring::default(),
+            Coloring::default(),
             SelectionDirection::Horizontal,
-            None,
             vec![
                 SelectorItem {
                     label: "a".to_string(),
