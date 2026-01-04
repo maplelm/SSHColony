@@ -16,8 +16,8 @@ limitations under the License.
 
 #![allow(unused)]
 use crate::engine::{
-    self,
-    enums::{RenderSignal, SceneSignal, Signal},
+    self, Instance,
+    enums::{RenderSignal, SceneInitSignals, SceneSignal, Signal},
     input::{Event, KeyEvent},
     render::{self, Canvas, Object, RenderUnitId},
     traits::Scene,
@@ -45,14 +45,8 @@ impl Settings {
 }
 
 impl Scene for Settings {
-    fn init(
-        &mut self,
-        render_tx: &mpsc::Sender<RenderSignal>,
-        signal: Option<Signal>,
-        canvas: &Canvas,
-        lg: Arc<logging::Logger>,
-    ) -> Signal {
-        render_tx.send(RenderSignal::Clear);
+    fn init(&mut self, ins: &mut Instance, sig: SceneInitSignals) -> Signal {
+        ins.render_queue.send(RenderSignal::Clear);
         self.init_complete = true;
         Signal::None
     }
@@ -62,18 +56,17 @@ impl Scene for Settings {
     fn is_paused(&self) -> bool {
         false
     }
-    fn reset(&mut self) {}
-    fn resume(&mut self, render_tx: &mpsc::Sender<RenderSignal>, canvas: &Canvas) {}
-    fn suspend(&mut self, render_tx: &mpsc::Sender<RenderSignal>) {}
-    fn update(
-        &mut self,
-        delta_time: f32,
-        event: &mpsc::Receiver<Event>,
-        render_tx: &std::sync::mpsc::Sender<RenderSignal>,
-        canvas: &Canvas,
-    ) -> Signal {
+    fn reset(&mut self, ins: &mut Instance) {}
+    fn resume(&mut self, ins: &mut Instance) {}
+    fn suspend(&mut self, ins: &mut Instance) {}
+    fn update(&mut self, inst: &mut Instance, delta_time: f32) -> Signal {
+        let canvas = &inst.canvas;
         let mut signals: Vec<Signal> = vec![];
-        for each in event.try_iter() {
+        let mut events = vec![];
+        for e in inst.event_recvier.try_iter() {
+            events.push(e);
+        }
+        for each in events {
             match each {
                 Event::Keyboard(k) => match k {
                     KeyEvent::Char('q') => signals.push(Signal::Scenes(SceneSignal::Pop)),

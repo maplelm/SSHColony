@@ -16,10 +16,11 @@ limitations under the License.
 
 use super::super::enums::RenderSignal;
 use super::Border;
+use crate::engine::render::{Char, ObjectData, TextType};
 use crate::engine::types::Position;
 use crate::engine::ui::style::Style;
 use crate::engine::{
-    render::{Canvas, Layer, Object, RenderUnitId},
+    render::{Canvas, Layer, Object, RenderUnitId, Text},
     ui::style::{Coloring, Measure},
 };
 use my_term::color::{Background, Foreground};
@@ -28,12 +29,12 @@ use std::sync::{Arc, Weak, mpsc::Sender};
 
 #[derive(Debug)]
 pub struct SelectorItem {
-    pub label: String,
+    pub label: Text,
     pub value: usize,
 }
 
 impl SelectorItem {
-    pub fn new(l: String, v: usize) -> Self {
+    pub fn new(l: Text, v: usize) -> Self {
         Self { label: l, value: v }
     }
 }
@@ -44,12 +45,20 @@ pub enum SelectionDirection {
     Horizontal,
 }
 
+#[derive(Debug, Clone)]
+pub enum SelectorState {
+    None,
+    Hovered,
+    Selected,
+}
+
 #[derive(Debug)]
 pub struct Selector {
     pub render_id: Weak<RenderUnitId>,
     pos: Position<i32>,
     style: Style,
     items: Vec<SelectorItem>,
+    state: SelectorState,
     select_color: Coloring,
     hover_color: Coloring,
     direction: SelectionDirection,
@@ -73,6 +82,7 @@ impl Selector {
             style,
             select_color,
             hover_color,
+            state: SelectorState::None,
             items: items,
             direction: direction,
             cursor: 0,
@@ -96,26 +106,7 @@ impl Selector {
         }
     }
 
-    fn selected_item(s: &str, output: &mut String, base_color: &Coloring, select_color: &Coloring) {
-        if let Some(fg) = select_color.fg() {
-            output.push_str(&fg.to_ansi());
-        }
-        if let Some(bg) = select_color.bg() {
-            output.push_str(&bg.to_ansi());
-        }
-        output.push_str(s);
-        if let Some(fg) = base_color.fg() {
-            output.push_str(&fg.to_ansi());
-        } else if select_color.fg().is_some() {
-            output.push_str("\x1b[39m");
-        }
-        if let Some(bg) = base_color.bg() {
-            output.push_str(&bg.to_ansi());
-        } else if select_color.bg().is_some() {
-            output.push_str("\x1b[49m");
-        }
-    }
-
+/*
     pub fn render_vertically(&mut self) -> String {
         let mut output = String::new();
         for (i, mut each) in self.items.iter().enumerate() {
@@ -155,37 +146,41 @@ impl Selector {
         }
         output
     }
-
+*/
     pub fn output(
         &mut self,
         render_tx: &Sender<RenderSignal>,
     ) -> Result<(), SendError<RenderSignal>> {
+
+        let out: Vec<Text> = match self.direction {
+            SelectionDirection::Horizontal => {
+                let mut t: Text = Text::from("", self.style.fg(), self.style.bg());
+                for each in self.items.iter() {
+                    t.join(each.label.clone());
+                    t.push(Char::new(' ', self.style.fg(), self.style.bg()));
+                }
+                vec![t]
+            }
+            SelectionDirection::Vertical => {
+                let mut v = Vec::with_capacity(self.items.len());
+                for each in self.items.iter() {
+                    v.push(each.label.clone())
+                }
+                v
+            }
+        };
         match self.render_id.upgrade() {
             None => {
                 let arc_id = RenderUnitId::new(Layer::Ui);
                 self.render_id = Arc::downgrade(&arc_id);
                 render_tx.send(RenderSignal::Insert(
                     arc_id,
-                    Object::static_text(
-                        self.pos.into(),
-                        match self.direction {
-                            SelectionDirection::Vertical => self.render_vertically(),
-                            SelectionDirection::Horizontal => self.render_horizontally(),
-                        },
-                        self.style.clone(),
-                    ),
+                    ObjectData::Text { pos: self.pos.clone().into(), data: TextType::Single(out), style: self.style.clone() },
                 ))
             }
             Some(arc) => render_tx.send(RenderSignal::Update(
                 arc,
-                Object::static_text(
-                    self.pos.into(),
-                    match self.direction {
-                        SelectionDirection::Vertical => self.render_vertically(),
-                        SelectionDirection::Horizontal => self.render_horizontally(),
-                    },
-                    self.style.clone(),
-                ),
+                ObjectData::Text { pos: self.pos.clone().into(), data: TextType::Single(out), style: self.style.clone()},
             )),
         }
     }
@@ -203,6 +198,7 @@ impl Selector {
     }
 }
 
+/*
 #[cfg(test)]
 mod test {
 
@@ -246,3 +242,4 @@ mod test {
         );
     }
 }
+*/

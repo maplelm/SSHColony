@@ -18,12 +18,12 @@ limitations under the License.
 use super::entity::{self, Entity};
 use super::material::Material;
 use super::tile::{self, Tile};
-use crate::engine::Error;
 use crate::engine::{
     self,
     render::{self, ObjectTemplate},
     types::{File, Position3D, SparseSet, Store},
 };
+use crate::engine::{Error, ErrorKind};
 use serde;
 use std::io::Read;
 use std::{fs, io::Write};
@@ -79,7 +79,7 @@ pub struct World {
 fn world_init_sprite_template() -> Store<ObjectTemplate> {
     match Store::from_dir("./data/sprites/") {
         Err(e) => panic!("world_init_sprite_template: {e}"),
-        Ok(s) => s
+        Ok(s) => s,
     }
 }
 
@@ -111,17 +111,40 @@ impl World {
         spr_dir: &str,
     ) -> Result<Self, Error> {
         let mut material_templates: Store<Material> = match Store::<Material>::from_dir(mat_dir) {
-            Err(e) => return Err(Error::IO(e)),
+            Err(e) => {
+                let k = e.kind();
+                return Err(Error::from(
+                    e,
+                    "failed to get store materials from dir",
+                    ErrorKind::Io(k),
+                ));
+            }
             Ok(m) => m,
         };
-        let mut entity_templates: Store<entity::Template> = match Store::<entity::Template>::from_dir(ent_dir) {
-            Err(e) => return Err(Error::IO(e)),
-            Ok(e) => e,
-        };
-        let mut sprite_templates: Store<ObjectTemplate> = match Store::<ObjectTemplate>::from_dir(spr_dir) {
-            Err(e) => return Err(Error::IO(e)),
-            Ok(o) => o,
-        };
+        let mut entity_templates: Store<entity::Template> =
+            match Store::<entity::Template>::from_dir(ent_dir) {
+                Err(e) => {
+                    let k = e.kind();
+                    return Err(Error::from(
+                        e,
+                        "failed to get entity templates from dir",
+                        ErrorKind::Io(k),
+                    ));
+                }
+                Ok(e) => e,
+            };
+        let mut sprite_templates: Store<ObjectTemplate> =
+            match Store::<ObjectTemplate>::from_dir(spr_dir) {
+                Err(e) => {
+                    let k = e.kind();
+                    return Err(Error::from(
+                        e,
+                        "failed to get sprite templates from dir",
+                        ErrorKind::Io(k),
+                    ));
+                }
+                Ok(o) => o,
+            };
         let mut world = Self {
             name: name,
             world_size: Position3D::new(x, y, z),
@@ -143,7 +166,8 @@ impl World {
     }
 
     pub fn tile_at(&mut self, x: usize, y: usize, z: usize) -> Option<&mut Tile> {
-        self.tiles.get_mut(z * (self.world_size.y * self.world_size.x) + (y * self.world_size.x) + x)
+        self.tiles
+            .get_mut(z * (self.world_size.y * self.world_size.x) + (y * self.world_size.x) + x)
     }
 
     pub fn generate(&mut self, seed: Option<usize>) -> Result<(), engine::Error> {
@@ -180,4 +204,3 @@ impl World {
         Position3D::new(x, y, z)
     }
 }
-

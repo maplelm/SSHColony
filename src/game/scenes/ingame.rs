@@ -16,8 +16,8 @@ limitations under the License.
 
 use crate::{
     engine::{
-        self, Error,
-        enums::{RenderSignal, Signal},
+        self, Error, Instance,
+        enums::{RenderSignal, SceneInitSignals, Signal},
         input::{Event, KeyEvent},
         render::{self, Canvas},
         traits::Scene,
@@ -70,13 +70,7 @@ impl InGame {
 }
 
 impl Scene for InGame {
-    fn init(
-        &mut self,
-        _render_tx: &mpsc::Sender<RenderSignal>,
-        signal: Option<Signal>,
-        canvas: &Canvas,
-        lg: Arc<logging::Logger>,
-    ) -> Signal {
+    fn init(&mut self, ins: &mut Instance, _sig: SceneInitSignals) -> Signal {
         let _ = self.world.generate(None);
         self.init_complete = true;
 
@@ -88,17 +82,16 @@ impl Scene for InGame {
     fn is_paused(&self) -> bool {
         self.is_paused
     }
-    fn reset(&mut self) {}
-    fn resume(&mut self, render_tx: &mpsc::Sender<RenderSignal>, canvas: &Canvas) {}
-    fn suspend(&mut self, render_tx: &mpsc::Sender<RenderSignal>) {}
-    fn update(
-        &mut self,
-        delta_time: f32,
-        event: &mpsc::Receiver<Event>,
-        render_tx: &std::sync::mpsc::Sender<RenderSignal>,
-        canvas: &Canvas,
-    ) -> Signal {
-        for event in event.try_iter() {
+    fn reset(&mut self, ins: &mut Instance) {}
+    fn resume(&mut self, ins: &mut Instance) {}
+    fn suspend(&mut self, ins: &mut Instance) {}
+    fn update(&mut self, inst: &mut Instance, delta_time: f32) -> Signal {
+        let canvas = &inst.canvas;
+        let mut events = vec![];
+        for e in inst.event_recvier.try_iter() {
+            events.push(e);
+        }
+        for event in events {
             match event {
                 Event::Keyboard(key) => match key {
                     KeyEvent::Char('q') => return Signal::Quit,

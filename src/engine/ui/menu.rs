@@ -16,10 +16,11 @@ limitations under the License.
 
 #![deny(unused_variables)]
 
+use crate::engine::render::{Char, ObjectData, PushChar, PushText, Text, TextType};
 use std::sync::mpsc;
 use std::sync::{Arc, Weak, atomic::AtomicUsize, mpsc::Sender};
 
-use super::super::render::Canvas;
+use super::super::render::{Canvas, RenderQueue};
 use super::{
     super::types::*,
     Border,
@@ -36,17 +37,31 @@ const CURSOR_OFFSET: usize = 2;
 const TOTAL_OFFSET: usize = CURSOR_OFFSET * 2;
 
 #[derive(Debug)]
-pub struct Item<I, O> {
-    pub label: String,
-    pub action: fn(I) -> O,
+pub struct Item<O> {
+    pub label: Text,
+    pub action: fn() -> O,
 }
 
-impl<I, O> Item<I, O> {
-    pub fn new(l: String, f: fn(I) -> O) -> Self {
+impl<O> Item<O> {
+    pub fn new(l: Text, f: fn() -> O) -> Self {
         Self {
             label: l,
             action: f,
         }
+    }
+
+    pub fn lines(matrix: &Vec<Self>) -> Vec<Text> {
+        let mut v = vec![];
+        for each in matrix {
+            v.push(each.label.clone());
+        }
+        v
+    }
+}
+
+impl<O> std::fmt::Display for Item<O> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.label)
     }
 }
 
@@ -54,36 +69,48 @@ impl<I, O> Item<I, O> {
 ///  MENU  ///
 //////////////
 #[derive(Debug)]
-pub struct Menu<I, O> {
+pub struct Menu<O> {
     pub render_id: Weak<RenderUnitId>,
-    marker: char,
+    pub render_queue: RenderQueue,
+    marker: Char,
     style: Style,
     position: Position<i32>,
-    items: Vec<Item<I, O>>,
+    items: Vec<Item<O>>,
     cursor: usize,
     #[allow(unused)]
     max_per_page: u16,
     _page: u16,
 }
 
-impl<I, O> Menu<I, O> {
-    pub fn new(x: i32, y: i32, style: Style, items: Vec<Item<I, O>>) -> Self {
+impl<O> Menu<O> {
+    pub fn new(
+        x: i32,
+        y: i32,
+        render_queue: RenderQueue,
+        style: Style,
+        items: Vec<Item<O>>,
+    ) -> Self {
         Self {
             render_id: Weak::new(),
-            position: Position { x: x + 1, y: y + 1 },
+            render_queue,
+            position: Position { x, y },
+            marker: Char::new('>', style.fg(), style.bg()),
             style,
             items: items,
-            marker: '>',
             cursor: 0,
             max_per_page: 0,
             _page: 0,
         }
     }
 
-    pub fn shift(&mut self, x: i32, y: i32, render_tx: &mpsc::Sender<RenderSignal>) {
+    pub fn shift(&mut self, x: i32, y: i32) {
         self.position.x += x;
         self.position.y += y;
-        self.output(render_tx);
+        self.output();
+    }
+
+    pub fn style(&self) -> &Style {
+        &self.style
     }
 
     pub fn x(&self) -> i32 {
@@ -104,7 +131,7 @@ impl<I, O> Menu<I, O> {
                 let mut output = 0;
                 output += self.largest_line();
                 if let Some(b) = &self.style.border {
-                    output += b.get_pad_left() + b.get_pad_right() + b.width();
+                    output += b.width();
                 }
                 output += TOTAL_OFFSET;
                 return output;
@@ -112,8 +139,8 @@ impl<I, O> Menu<I, O> {
         }
     }
 
-    pub fn execute(&mut self, i: I) -> O {
-        (self.items[self.cursor].action)(i)
+    pub fn execute(&mut self) -> O {
+        (self.items[self.cursor].action)()
     }
 
     pub fn cursor_pos(&self) -> Position<i32> {
@@ -121,19 +148,21 @@ impl<I, O> Menu<I, O> {
             None => Position::new(self.x(), self.y() + self.cursor as i32),
 
             Some(b) => Position::new(
-                self.x() + 1 + b.get_pad_left() as i32,
-                self.y() + 1 + b.get_pad_top() as i32 + self.cursor as i32,
+                self.x() + 1 + b.l_pad() as i32,
+                self.y() + 1 + b.top_pad() as i32 + self.cursor as i32,
             ),
         }
     }
 
-    pub fn add(&mut self, item: Item<I, O>) {
+    pub fn add(&mut self, item: Item<O>) {
         self.items.push(item);
+        self.output();
     }
 
     pub fn cursor_up(&mut self, amount: usize) -> bool {
         if self.cursor as isize - amount as isize >= 0 {
             self.cursor -= amount;
+            self.output();
             return true; // Moved
         }
         false // did not move
@@ -142,38 +171,49 @@ impl<I, O> Menu<I, O> {
     pub fn cursor_down(&mut self, amount: usize) -> bool {
         if self.cursor + amount < self.items.len() {
             self.cursor += amount;
+            self.output();
             return true; // Moved
         }
         false // did not move
     }
 
-    pub fn output(&mut self, render_tx: &Sender<RenderSignal>) {
-        let mut out = String::new();
+    pub fn output(&mut self) {
+        let mut out = Vec::with_capacity(self.items.len());
         for (i, l) in self.items.iter().enumerate() {
             if i == self.cursor {
-                out.push(self.marker);
-                out.push(' ');
+                let mut l = l.label.clone();
+                l.insert(0, self.marker);
+                l.insert(1, Char::new(' ', self.style.fg(), self.style.bg()));
+                out.push(l);
             } else {
-                out.push_str("  ");
-            }
-            out.push_str(&l.label);
-            if i < self.items.len() - 1 {
-                out.push('\n');
+                let mut l = l.label.clone();
+                l.insert(0, Char::new(' ', self.style.fg(), self.style.bg()));
+                l.insert(0, Char::new(' ', self.style.fg(), self.style.bg()));
+                out.push(l);
             }
         }
         match self.render_id.upgrade() {
             None => {
                 let arc_id = RenderUnitId::new(Layer::Ui);
                 self.render_id = Arc::downgrade(&arc_id);
-                render_tx.send(RenderSignal::Insert(
+
+                self.render_queue.send(RenderSignal::Insert(
                     arc_id,
-                    Object::static_text(self.position.into(), out, self.style.clone()),
+                    ObjectData::Text {
+                        pos: self.position.clone().into(),
+                        data: TextType::Single(out),
+                        style: self.style.clone(),
+                    },
                 ));
             }
             Some(arc) => {
-                render_tx.send(RenderSignal::Update(
+                self.render_queue.send(RenderSignal::Update(
                     arc,
-                    Object::static_text(self.position.into(), out, self.style.clone()),
+                    ObjectData::Text {
+                        pos: self.position.clone().into(),
+                        data: TextType::Single(out),
+                        style: self.style.clone(),
+                    },
                 ));
             }
         }
@@ -197,13 +237,13 @@ impl<I, O> Menu<I, O> {
         if let Some(h) = &self.style.size.height {
             max = h.get(canvas.height - self.position.y as usize);
             if let Some(b) = &self.style.border {
-                max -= b.get_pad_top() + b.get_pad_bottom() + b.height();
+                max -= b.height();
             }
             self.max_per_page = max as u16;
         } else {
             max = canvas.height - self.position.y as usize;
             if let Some(b) = &self.style.border {
-                max -= b.get_pad_top() + b.get_pad_bottom() + b.height();
+                max -= b.height();
             }
             self.max_per_page = max as u16;
         }

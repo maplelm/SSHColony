@@ -16,13 +16,17 @@ limitations under the License.
 
 mod file;
 mod instance;
+mod network;
 mod positions;
+mod rect;
 mod sparseset;
 mod store;
 
 pub use file::*;
+pub use network::*;
 pub use positions::*;
+pub use rect::*;
 pub use sparseset::SparseSet;
 pub use store::*;
 
-pub use instance::Instance;
+pub use instance::{Instance, InstanceConfig};

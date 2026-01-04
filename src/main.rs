@@ -25,19 +25,18 @@ use std::{
 };
 
 use crate::engine::{
-    Instance, render,
-    render::Canvas,
-    types::{Position, Position3D, Store},
+    Instance,
+    render::{self, Canvas},
+    types::{InstanceConfig, Position, Position3D, Store},
 };
 use game::MainMenu;
 use ron;
 
 fn main() -> ExitCode {
-    match engine::start(Instance::new(
-        MainMenu::new(),
-        "./logs/",
-        logging::LogLevel::Debug,
-    )) {
+    let logging_path = "./logs/";
+    let logging_level = logging::LogLevel::Debug;
+
+    match engine::start(InstanceConfig::new(logging_path, logging_level)) {
         Ok(_) => return ExitCode::SUCCESS,
         Err(e) => {
             println!("Error While Running Game, {}", e);

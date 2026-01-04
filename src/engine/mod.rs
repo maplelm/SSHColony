@@ -18,7 +18,7 @@ mod core;
 pub use core::*;
 
 mod error;
-pub use error::Error;
+pub use error::{Error, ErrorKind};
 
 mod context;
 pub use context::Context;

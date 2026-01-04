@@ -1,21 +1,13 @@
 use std::time::{Duration, Instant};
 use std::{fmt::Display, time};
 
-use my_term::{
-    Character, Text,
-    color::{Background, Foreground},
-};
+use my_term::color::{Background, Foreground};
 use serde::{Deserialize, Serialize};
 
+use crate::engine::render::Glyph;
 use crate::engine::types::Position3D;
 
 pub type Position = Position3D<i32>;
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Glyph {
-    Small(Character),
-    Block(Vec<Text>),
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Sprite {
@@ -23,65 +15,24 @@ pub enum Sprite {
     Dynamic(Dynamic),
 }
 impl Sprite {
-    pub fn new_static(c: impl Into<Character>, pos: Position) -> Self {
+    pub fn new_static(sprite: Glyph, pos: Position) -> Self {
         Self::Static(Static {
             pos,
-            base: Base {
-                sprite: Glyph::Small(c.into()),
-            },
+            base: Base { sprite },
         })
     }
 
-    pub fn new_static_block(b: Vec<impl Into<Text>>, pos: Position) -> Self {
-        let mut block = vec![];
-        for each in b {
-            block.push(each.into());
-        }
-        Self::Static(Static {
-            pos,
-            base: Base {
-                sprite: Glyph::Block(block),
-            },
-        })
-    }
-
-    pub fn new_dynamic(sheet: Vec<impl Into<Character>>, pos: Position) -> Self {
-        let mut new_sheet: Vec<Base> = vec![];
-        for each in sheet {
-            new_sheet.push(Base {
-                sprite: Glyph::Small(each.into()),
-            })
-        }
-        Self::Dynamic(Dynamic {
-            pos,
-            cursor: 0,
-            tick_rate: Duration::from_secs(1),
-            last_tick: None,
-            frames: new_sheet,
-        })
-    }
-
-    pub fn new_dynamic_block(sheet: Vec<Vec<impl Into<Text>>>, pos: Position) -> Self {
-        let mut new_sheet = vec![];
+    pub fn new_dynamic(sheet: Vec<Glyph>, pos: Position, tick_rate: Duration) -> Self {
+        let mut frames = Vec::new();
         for s in sheet {
-            let mut frame = vec![];
-            for each in s {
-                frame.push(each.into());
-            }
-            new_sheet.push(frame);
-        }
-        let mut frames = vec![];
-        for f in new_sheet {
-            frames.push(Base {
-                sprite: Glyph::Block(f),
-            });
+            frames.push(Base { sprite: s });
         }
         Self::Dynamic(Dynamic {
             pos,
             cursor: 0,
-            tick_rate: Duration::from_secs(1),
+            tick_rate,
             last_tick: None,
-            frames: frames,
+            frames,
         })
     }
 
@@ -174,19 +125,28 @@ impl Sprite {
     }
 }
 
+impl std::fmt::Display for Sprite {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Static(s) => write!(f, "{}", s.base.sprite),
+            Self::Dynamic(d) => write!(f, "{}", d.frames[d.cursor].sprite),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
-struct Base {
+pub struct Base {
     pub sprite: Glyph,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-struct Static {
+pub struct Static {
     pub pos: Position,
     pub base: Base,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-struct Dynamic {
+pub struct Dynamic {
     pub pos: Position,
     pub cursor: usize,
     pub tick_rate: Duration,

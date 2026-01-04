@@ -1,21 +1,36 @@
-use super::drawable::{Line, LineSlice};
+use crate::engine::render::drawable::Text;
 use crate::engine::{
-    render::{Canvas, sprite::Position},
+    render::{Canvas, Char, drawable::TextSlice, sprite::Position},
     types::Position3D,
     ui::style::{Align, Alignment, Justify, Style},
 };
-use my_term::{
-    Text,
-    color::{Background, Foreground},
-};
+use my_term::color::{Background, Foreground};
 use serde::{Deserialize, Serialize};
 use std::{
-    fmt::Display,
+    fmt::{Display, Write},
     time::{Duration, Instant},
 };
 
+#[derive(Debug, Clone)]
 pub struct TextboxSlice<'a> {
-    pub lines: Vec<LineSlice<'a>>,
+    pub lines: Vec<TextSlice<'a>>,
+}
+
+impl<'a> std::fmt::Display for TextboxSlice<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (i, l) in self.lines.iter().enumerate() {
+            if i < self.lines.len() - 1 {
+                if let Err(e) = write!(f, "{}\x1b[1B\x1b[{}D", l, l.len()) {
+                    return std::fmt::Result::Err(e);
+                }
+            } else {
+                if let Err(e) = write!(f, "{l}") {
+                    return std::fmt::Result::Err(e);
+                }
+            }
+        }
+        std::fmt::Result::Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -25,6 +40,23 @@ pub enum Textbox {
 }
 
 impl Textbox {
+    pub fn new_static(pos: Position3D<i32>, lines: Vec<Text>, style: Style, can: &Canvas) -> Self {
+        Self::Static(Static {
+            pos,
+            base: Base::new(lines, style, can),
+        })
+    }
+
+    pub fn new_dynamic(pos: Position3D<i32>, frames: Vec<Base>, tick_rate: Duration) -> Self {
+        Self::Dynamic(Dynamic {
+            pos,
+            frames,
+            cursor: 0,
+            tick_rate,
+            last_tick: None,
+        })
+    }
+
     pub fn width(&self, can: &Canvas) -> usize {
         match self {
             Self::Static(s) => s.base.width(can),
@@ -36,6 +68,13 @@ impl Textbox {
         match self {
             Self::Static(s) => s.base.height(can),
             Self::Dynamic(d) => d.frames[d.cursor].height(can),
+        }
+    }
+
+    pub fn pos(&self) -> Position3D<i32> {
+        match self {
+            Self::Static(s) => s.pos.clone(),
+            Self::Dynamic(d) => d.pos.clone(),
         }
     }
 
@@ -51,6 +90,81 @@ impl Textbox {
             Self::Static(_) => true,
             _ => false,
         }
+    }
+
+    pub fn insert(&mut self, row: usize, col: usize, chars: &[Char], canvas: &Canvas) {
+        match self {
+            Self::Static(s) => {
+                if row == s.base.lines.len() {
+                    s.base.lines.push(Text::new());
+                }
+                for i in 0..chars.len() {
+                    s.base.lines[row].insert(col + i, chars[i]);
+                }
+            }
+            Self::Dynamic(d) => {
+                let lines = &mut d.frames[d.cursor].lines;
+                if row == lines.len() {
+                    lines.push(Text::new());
+                }
+                for i in 0..chars.len() {
+                    lines[row].insert(col + i, chars[i]);
+                }
+            }
+        }
+    }
+
+    pub fn push(&mut self, text: Text, canvas: &Canvas) {
+        match self {
+            Self::Static(s) => {
+                s.base.lines.push(text);
+                s.base.build_cache(canvas);
+            }
+            Self::Dynamic(d) => {
+                d.frames[d.cursor].lines.push(text);
+                d.frames[d.cursor].build_cache(canvas);
+            }
+        }
+    }
+
+    pub fn slice(
+        &self,
+        left_offset: usize,
+        right_offset: usize,
+        top_offset: usize,
+        bot_offset: usize,
+    ) -> TextboxSlice {
+        let mut v = vec![];
+        match self {
+            Self::Static(s) => {
+                let bot_offset = s.base.cache.as_ref().unwrap().len() - bot_offset;
+                for (i, l) in s.base.cache.as_ref().unwrap().iter().enumerate() {
+                    if i < top_offset {
+                        continue;
+                    }
+                    if i >= bot_offset {
+                        break;
+                    }
+                    let right_offset = l.len() - right_offset;
+                    v.push(l.slice(left_offset, right_offset));
+                }
+            }
+            Self::Dynamic(d) => {
+                let lines = d.frames[d.cursor].cache.as_ref().unwrap();
+                let bot_offset = lines.len() - bot_offset;
+                for (i, l) in lines.iter().enumerate() {
+                    if i < top_offset {
+                        continue;
+                    }
+                    if i > bot_offset {
+                        break;
+                    }
+                    let right_offset = l.len() - right_offset;
+                    v.push(l.slice(left_offset, right_offset));
+                }
+            }
+        }
+        TextboxSlice { lines: v }
     }
 
     pub fn is_dynamic(&self) -> bool {
@@ -77,15 +191,44 @@ impl Textbox {
     }
 }
 
+impl std::fmt::Display for Textbox {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let print = |f: &mut std::fmt::Formatter<'_>, lines: &[Text]| -> std::fmt::Result {
+            for (i, l) in lines.iter().enumerate() {
+                if i < lines.len() - 1 {
+                    if let Err(e) = write!(f, "{}[1B[{}D\n", l, l.len()) {
+                        return std::fmt::Result::Err(e);
+                    }
+                } else {
+                    if let Err(e) = write!(f, "{l}") {
+                        return std::fmt::Result::Err(e);
+                    }
+                }
+            }
+            std::fmt::Result::Ok(())
+        };
+        match self {
+            Self::Static(s) => match &s.base.cache {
+                Some(cache) => print(f, cache),
+                None => std::fmt::Result::Ok(()),
+            },
+            Self::Dynamic(d) => match d.frames[d.cursor].cache.as_ref() {
+                Some(cache) => print(f, cache),
+                None => std::fmt::Result::Ok(()),
+            },
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Base {
-    lines: Vec<Line>,
+    lines: Vec<Text>,
     style: Style,
-    cache: Option<Vec<Line>>,
+    cache: Option<Vec<Text>>,
 }
 
 impl Base {
-    pub fn new(lines: Vec<Line>, style: Style, can: &Canvas) -> Self {
+    pub fn new(lines: Vec<Text>, style: Style, can: &Canvas) -> Self {
         let mut output = Self {
             lines,
             style,
@@ -150,100 +293,87 @@ impl Base {
 
     pub fn build_cache(&mut self, can: &Canvas) {
         let mut row = 0;
-        let mut cache = vec![];
+        let mut cache: Vec<Text> = Vec::with_capacity(self.height(can));
         let (t_align, b_align) = self.v_alignments(can);
         let max_str_len = self.max_text_len(can);
+        let fg = self.style.fg();
+        let bg = self.style.bg();
+
         // Build Top Border
         if let Some(b) = self.style.border.as_ref() {
-            let mut text: String = String::new();
+            let mut text: Text = Text::new();
             if b.has_left_border() {
-                text.push(b.top_l().unwrap_or(' '));
+                text.push(Char::new(b.top_l().unwrap_or(' '), fg, bg));
             }
             if b.has_top_border() {
                 for col in 0..self.width(can) - 2 {
-                    text.push(b.top(col).unwrap_or(' '));
+                    text.push(Char::new(b.top(col).unwrap_or(' '), fg, bg));
                 }
             }
             if b.has_right_border() {
-                text.push(b.top_r().unwrap_or(' '));
+                text.push(Char::new(b.top_r().unwrap_or(' '), fg, bg));
             }
-            cache.push(Line::new(vec![Text::new(
-                text,
-                self.style.fg(),
-                self.style.bg(),
-            )]));
+            cache.push(text);
 
             // Build Top Padding
             let width = self.width(can)
                 - (if b.has_left_border() { 1 } else { 0 }
                     + if b.has_right_border() { 1 } else { 0 });
             for p_row in 0..b.top_pad() + t_align {
-                let mut text: String = String::new();
+                let mut text: Text = Text::new();
                 if b.has_left_border() {
-                    text.push(b.l(row).unwrap_or(' '));
+                    text.push(Char::new(b.l(row).unwrap_or(' '), fg, bg));
                 }
                 for _ in 0..width {
-                    text.push(' ');
+                    text.push(Char::new(' ', fg, bg));
                 }
                 if b.has_right_border() {
-                    text.push(b.r(row).unwrap_or(' '));
+                    text.push(Char::new(b.r(row).unwrap_or(' '), fg, bg));
                 }
-                cache.push(Line::new(vec![Text::new(
-                    text,
-                    self.style.fg(),
-                    self.style.bg(),
-                )]));
+                cache.push(text);
                 row += 1;
             }
         } else {
             // Build Top Alignment
             if t_align > 0 {
-                let mut text = String::new();
+                let mut text = Text::new();
                 for _ in 0..self.width(can) {
-                    text.push(' ')
+                    text.push(Char::new(' ', fg, bg));
                 }
                 for _ in 0..t_align {
-                    cache.push(Line::new(vec![Text::new(
-                        text.clone(),
-                        self.style.fg(),
-                        self.style.bg(),
-                    )]));
+                    cache.push(text.clone());
                 }
             }
         }
 
         // Build Lines
         for (line_row, line) in self.lines.iter().enumerate() {
-            let mut text = String::new();
+            let mut text = Text::new();
             let (l_align, r_align) = self.h_alignments(line_row, can);
             if let Some(b) = self.style.border.as_ref() {
                 if b.has_left_border() {
-                    text.push(b.l(row).unwrap_or(' '));
+                    text.push(Char::new(b.l(row).unwrap_or(' '), fg, bg));
                 }
                 for _ in 0..b.l_pad() {
-                    text.push(' ');
+                    text.push(Char::new(' ', fg, bg));
                 }
             }
             for _ in 0..l_align {
-                text.push(' ');
+                text.push(Char::new(' ', fg, bg));
             }
-            text.push_str(&format!("{}", line.slice(0, max_str_len)));
+            text.push_textslice(&line.slice(0, max_str_len));
             for _ in 0..r_align {
-                text.push(' ');
+                text.push(Char::new(' ', fg, bg));
             }
             if let Some(b) = self.style.border.as_ref() {
                 for _ in 0..b.r_pad() {
-                    text.push(' ');
+                    text.push(Char::new(' ', fg, bg));
                 }
                 if b.has_right_border() {
-                    text.push(b.r(row).unwrap_or(' '));
+                    text.push(Char::new(b.r(row).unwrap_or(' '), fg, bg));
                 }
             }
-            cache.push(Line::new(vec![Text::new(
-                text,
-                self.style.fg(),
-                self.style.bg(),
-            )]));
+            cache.push(text);
             row += 1;
         }
 
@@ -253,54 +383,42 @@ impl Base {
                 - (if b.has_left_border() { 1 } else { 0 }
                     + if b.has_right_border() { 1 } else { 0 });
             for _ in 0..b_align {
-                let mut text = String::new();
+                let mut text = Text::new();
                 if b.has_left_border() {
-                    text.push(b.l(row).unwrap_or(' '));
+                    text.push(Char::new(b.l(row).unwrap_or(' '), fg, bg));
                 }
                 for _ in 0..width {
-                    text.push(' ');
+                    text.push(Char::new(' ', fg, bg));
                 }
                 if b.has_right_border() {
-                    text.push(b.r(row).unwrap_or(' '));
+                    text.push(Char::new(b.r(row).unwrap_or(' '), fg, bg));
                 }
                 row += 1;
-                cache.push(Line::new(vec![Text::new(
-                    text,
-                    self.style.fg(),
-                    self.style.bg(),
-                )]));
+                cache.push(text);
             }
 
             for _ in 0..b.bot_pad() {
-                let mut text = String::new();
+                let mut text = Text::new();
                 if b.has_left_border() {
-                    text.push(b.l(row).unwrap_or(' '));
+                    text.push(Char::new(b.l(row).unwrap_or(' '), fg, bg));
                 }
                 for _ in 0..width {
-                    text.push(' ');
+                    text.push(Char::new(' ', fg, bg));
                 }
                 if b.has_right_border() {
-                    text.push(b.r(row).unwrap_or(' '));
+                    text.push(Char::new(b.r(row).unwrap_or(' '), fg, bg));
                 }
                 row += 1;
-                cache.push(Line::new(vec![Text::new(
-                    text,
-                    self.style.fg(),
-                    self.style.bg(),
-                )]));
+                cache.push(text);
             }
         } else {
             if b_align > 0 {
-                let mut text = String::new();
+                let mut text = Text::new();
                 for _ in 0..self.width(can) {
-                    text.push(' ');
+                    text.push(Char::new(' ', fg, bg));
                 }
                 for _ in 0..b_align {
-                    cache.push(Line::new(vec![Text::new(
-                        text.clone(),
-                        self.style.fg(),
-                        self.style.bg(),
-                    )]));
+                    cache.push(text.clone());
                 }
             }
         }
@@ -310,21 +428,17 @@ impl Base {
             let width = self.width(can)
                 - (if b.has_left_border() { 1 } else { 0 }
                     + if b.has_right_border() { 1 } else { 0 });
-            let mut text = String::new();
+            let mut text = Text::new();
             if b.has_left_border() {
-                text.push(b.bot_l().unwrap_or(' '));
+                text.push(Char::new(b.bot_l().unwrap_or(' '), fg, bg));
             }
             for i in 0..width {
-                text.push(b.bot(i).unwrap_or(' '));
+                text.push(Char::new(b.bot(i).unwrap_or(' '), fg, bg));
             }
             if b.has_right_border() {
-                text.push(b.bot_r().unwrap_or(' '));
+                text.push(Char::new(b.bot_r().unwrap_or(' '), fg, bg));
             }
-            cache.push(Line::new(vec![Text::new(
-                text,
-                self.style.fg(),
-                self.style.bg(),
-            )]));
+            cache.push(text);
         }
         self.cache = Some(cache);
     }

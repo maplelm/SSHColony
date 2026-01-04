@@ -1,4 +1,3 @@
-use crate::engine::input::Event;
 /*
 Copyright 2025 Luke Maple
 
@@ -14,18 +13,21 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 use crate::engine::render::RenderUnitId;
 
-use super::super::super::render::{Canvas, Layer, Object};
+use super::super::super::render::{Layer, ObjectData};
 use super::super::Error;
 use super::super::types::Position3D;
 use super::traits::Scene;
-use my_term::Terminal;
 use my_term::color::{Background, Foreground};
 use std::any::Any;
-use std::sync::{Arc, atomic::AtomicUsize};
+use std::sync::Arc;
 
-#[derive(Debug)]
+pub enum SceneInitSignals {
+    None,
+}
+
 pub enum Signal {
     None,
     Quit,
@@ -47,18 +49,17 @@ pub enum SceneDataMsg {
     },
 }
 
-#[derive(Debug)]
 pub enum SceneSignal {
     Pop,
     New {
         scene: Box<dyn Scene>,
-        signal: Option<Box<Signal>>,
+        signal: SceneInitSignals,
     },
 }
 
 #[derive(Debug)]
 pub enum RenderSignal {
-    Insert(Arc<RenderUnitId>, Object),
+    Insert(Arc<RenderUnitId>, ObjectData),
     Remove(Arc<RenderUnitId>),
     Move(Arc<RenderUnitId>, Position3D<i32>),
     MoveLayer(Arc<RenderUnitId>, Layer),
@@ -70,24 +71,11 @@ pub enum RenderSignal {
     ScrollUI(i32),
     ShiftUI(i32),
     SetCamera(Position3D<i32>),
-    Update(Arc<RenderUnitId>, Object),
+    Update(Arc<RenderUnitId>, ObjectData),
     Redraw,
     Clear,
     Batch(Vec<RenderSignal>),
     Sequence(Vec<RenderSignal>),
-}
-
-impl RenderSignal {
-    // Marking as test as I don't want to be checking Signals like this for any reason other then
-    // testing
-    #[cfg(test)]
-    pub fn as_str(&mut self, canvas: &Canvas) -> Option<String> {
-        match self {
-            RenderSignal::Insert(_, obj) => Some(obj.to_string(canvas)),
-            RenderSignal::Update(_, obj) => Some(obj.to_string(canvas)),
-            _ => None,
-        }
-    }
 }
 
 ////////////////

@@ -16,7 +16,7 @@ limitations under the License.
 
 use std::fmt::Display;
 
-use my_term::color::{Background, Foreground, Iso};
+use my_term::color::{Background, Foreground, WHITE, BLACK};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -26,10 +26,10 @@ pub struct Coloring {
 }
 
 impl Coloring {
-    pub fn new(fg: &Foreground, bg: &Background) -> Self {
+    pub fn new(fg: impl Into<u8>, bg: impl Into<u8>) -> Self {
         Self {
-            foreground: (*fg).clone(),
-            background: (*bg).clone(),
+            foreground: Foreground::new(fg.into()),
+            background: Background::new(bg.into()),
         }
     }
     pub fn set_fg(mut self, fg: Foreground) -> Self {
@@ -41,25 +41,13 @@ impl Coloring {
         self.background = bg;
         self
     }
-
-    pub fn is_colored(&self) -> bool {
-        !self.foreground.is_none() || !self.background.is_none()
-    }
-
-    pub fn has_fg(&self) -> bool {
-        !self.foreground.is_none()
-    }
-
-    pub fn has_bg(&self) -> bool {
-        !self.background.is_none()
-    }
 }
 
 impl Default for Coloring {
     fn default() -> Self {
         Self {
-            foreground: Foreground::none(),
-            background: Background::none(),
+            foreground: Foreground::new(WHITE),
+            background: Background::new(BLACK),
         }
     }
 }

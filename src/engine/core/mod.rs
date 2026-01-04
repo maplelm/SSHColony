@@ -13,10 +13,30 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+////////////////////
+// Public Modules //
+////////////////////
 pub mod enums;
+pub mod traits;
+
+/////////////////////
+// Private Modules //
+/////////////////////
+
 mod audio_thread;
 mod event_thread;
 mod main_thread;
-pub  mod traits;
+
+///////////////////////////
+// Public Use Statements //
+///////////////////////////
 
 pub use main_thread::start;
+
+////////////////////////////
+// Private Use Statements //
+////////////////////////////
+
+use audio_thread::audio_thread;
+use event_thread::event_thread;

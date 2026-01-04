@@ -16,175 +16,218 @@ limitations under the License.
 
 use crate::{
     engine::{
-        enums::{RenderSignal, SceneSignal, Signal},
+        Instance,
+        enums::{RenderSignal, SceneInitSignals, SceneSignal, Signal as EngineSignal},
         input::{Event, KeyEvent},
-        render::{Canvas, Layer, Object, RenderUnitId},
+        render::{Canvas, Layer, Object, ObjectData, RenderQueue, RenderUnitId, Text, TextType},
         traits::Scene,
+        types::Position3D,
         ui::{
             Border, BorderSprite, Menu, MenuItem, Padding, SelectionDirection, Selector,
-            SelectorItem, Textbox,
+            SelectorItem, TextArea,
             style::{self, Align, Justify, Measure, Size, Style},
         },
     },
     game::{LoadGame, Settings},
 };
-use my_term::color::{Background, Color, Foreground, Iso};
+use my_term::color::{BLACK, Background, Foreground, GREEN};
+use std::io::Read;
+use std::io::Write;
+use std::net::Ipv4Addr;
+use std::net::SocketAddrV4;
+use std::net::TcpStream;
 use std::sync::{Arc, Weak, mpsc};
 
-#[allow(unused)]
-#[derive(Debug)]
-enum Signals {
+/// Internal Signals for the MainMenu
+enum _Sig {
     None,
     Quit,
-    NewScene(Box<dyn Scene>),
+    Connect,
+    MenuCursorDown(usize),
+    MenuCursorUp(usize),
+    MenuUp(usize),
+    MenuDown(usize),
+    MenuRight(usize),
+    MenuLeft(usize),
+    MenuExe,
+    Render(RenderSignal),
+    Batch(Vec<_Sig>),
+    LoadGameScene,
+    SettingsScene,
 }
 
-#[derive(Debug)]
 pub struct MainMenu {
-    menu: Menu<(), Signals>,
-    lg: Option<Arc<logging::Logger>>,
+    menu: Menu<_Sig>,
     err_msg_handle: Option<Arc<RenderUnitId>>,
     init_complete: bool,
 }
 
 impl MainMenu {
-    pub fn new() -> Box<dyn Scene> {
+    pub fn new(render_queue: RenderQueue) -> Box<dyn Scene> {
         Box::new(Self {
             menu: Menu::new(
                 0,
                 0,
+                render_queue,
                 Style::default()
                     .set_border(Border::as_heavy(Padding::square(1)))
                     .set_size(Size::rect(Measure::Percent(50), Measure::Percent(50)))
                     .set_justify(Justify::Center)
                     .set_align(Align::Center)
-                    .set_fg(Foreground::green(false))
-                    .set_bg(Background::black(false)),
+                    .set_fg(Foreground::new(GREEN))
+                    .set_bg(Background::new(BLACK)),
                 vec![
                     MenuItem {
-                        label: String::from("Play"),
-                        action: |_| -> Signals { Signals::NewScene(LoadGame::new()) },
+                        label: Text::from(
+                            "Connect",
+                            Foreground::new(GREEN),
+                            Background::new(BLACK),
+                        ),
+                        action: action_connect,
                     },
                     MenuItem {
-                        label: String::from("Settings"),
-                        action: |_| -> Signals { Signals::NewScene(Settings::new()) },
+                        label: Text::from(
+                            "Settings",
+                            Foreground::new(GREEN),
+                            Background::new(BLACK),
+                        ),
+                        action: action_goto_settings,
                     },
                     MenuItem {
-                        label: String::from("Quit"),
-                        action: |_| -> Signals { Signals::Quit },
+                        label: Text::from("Quit", Foreground::new(GREEN), Background::new(BLACK)),
+                        action: action_quit,
                     },
                 ],
             ),
             init_complete: false,
-            lg: None,
             err_msg_handle: None,
         })
+    }
+
+    fn process_event(&mut self, e: Event) -> _Sig {
+        match e {
+            Event::Keyboard(e) => match e {
+                KeyEvent::Up => _Sig::Render(RenderSignal::ScrollUI(-1)),
+                KeyEvent::Down => _Sig::Render(RenderSignal::ScrollUI(1)),
+                KeyEvent::Left => _Sig::Render(RenderSignal::ShiftUI(-1)),
+                KeyEvent::Right => _Sig::Render(RenderSignal::ShiftUI(1)),
+                KeyEvent::Char('W') => _Sig::MenuUp(1),
+                KeyEvent::Char('S') => _Sig::MenuDown(1),
+                KeyEvent::Char('A') => _Sig::MenuLeft(1),
+                KeyEvent::Char('D') => _Sig::MenuRight(1),
+                KeyEvent::Char('q') => _Sig::Quit,
+                KeyEvent::Char('w') => _Sig::MenuCursorUp(1),
+                KeyEvent::Char('s') => _Sig::MenuCursorDown(1),
+                KeyEvent::Char('d') => _Sig::MenuExe,
+                _ => _Sig::None,
+            },
+            _ => _Sig::None,
+        }
+    }
+
+    fn process_signal(&mut self, inst: &mut Instance, s: _Sig) -> EngineSignal {
+        match s {
+            _Sig::Batch(batch) => {
+                let mut output = vec![];
+                for each in batch {
+                    match self.process_signal(inst, each) {
+                        EngineSignal::None => {}
+                        other => output.push(other),
+                    };
+                }
+                if output.len() == 0 {
+                    EngineSignal::None
+                } else if output.len() == 1 {
+                    output.pop().unwrap()
+                } else {
+                    EngineSignal::Batch(output)
+                }
+            }
+            _Sig::Quit => EngineSignal::Quit,
+            _Sig::LoadGameScene => EngineSignal::Scenes(SceneSignal::New {
+                scene: LoadGame::new(inst.render_queue.clone()),
+                signal: SceneInitSignals::None,
+            }),
+            _Sig::SettingsScene => EngineSignal::Scenes(SceneSignal::New {
+                scene: Settings::new(),
+                signal: SceneInitSignals::None,
+            }),
+            _Sig::Connect => {
+                let (serv_ver, tick_rate) = match inst.net.send_hel() {
+                    Ok(res) => res,
+                    Err(e) => {
+
+                        let _ = inst.logger.write(logging::LogLevel::Error, "Failed to connect to game server");
+                        return EngineSignal::None;
+                    }
+                };
+                
+                inst.tick_rate = tick_rate;
+                EngineSignal::None
+            }
+            _Sig::Render(r) => EngineSignal::Render(r),
+            _Sig::MenuCursorUp(d) => {
+                self.menu.cursor_up(d);
+                EngineSignal::None
+            }
+            _Sig::MenuCursorDown(d) => {
+                self.menu.cursor_down(d);
+                EngineSignal::None
+            }
+            _Sig::MenuRight(d) => {
+                self.menu.shift(d as i32, 0);
+                EngineSignal::None
+            }
+            _Sig::MenuLeft(d) => {
+                self.menu.shift(-(d as i32), 0);
+                EngineSignal::None
+            }
+            _Sig::MenuUp(d) => {
+                self.menu.shift(0, -(d as i32));
+                EngineSignal::None
+            }
+            _Sig::MenuDown(d) => {
+                self.menu.shift(0, d as i32);
+                EngineSignal::None
+            }
+            _Sig::MenuExe => {
+                let sig = self.menu.execute();
+                self.process_signal(inst, sig)
+            }
+            _Sig::None => EngineSignal::None,
+        }
     }
 }
 
 impl Scene for MainMenu {
-    fn init(
-        &mut self,
-        render_tx: &mpsc::Sender<RenderSignal>,
-        signal: Option<Signal>,
-        _canvas: &Canvas,
-        lg: Arc<logging::Logger>,
-    ) -> Signal {
-        self.menu.output(render_tx);
-        self.lg = Some(lg);
+    fn init(&mut self, inst: &mut Instance, signal: SceneInitSignals) -> EngineSignal {
+        self.menu.output();
         self.init_complete = true;
-        if let Err(_e) = render_tx.send(RenderSignal::Redraw) {
-            // Log that there was a problem
-        }
-        Signal::None
+        EngineSignal::Render(RenderSignal::Redraw)
     }
-
     fn is_init(&self) -> bool {
         self.init_complete
     }
 
-    fn update(
-        &mut self,
-        _delta_time: f32,
-        event: &mpsc::Receiver<Event>,
-        render_tx: &mpsc::Sender<RenderSignal>,
-        _canvas: &Canvas,
-    ) -> Signal {
-        let mut signals: Vec<Signal> = vec![];
-        for e in event.try_iter() {
-            match e {
-                Event::Keyboard(e) => match e {
-                    KeyEvent::Up => signals.push(Signal::Render(RenderSignal::ScrollUI(1))),
-                    KeyEvent::Down => signals.push(Signal::Render(RenderSignal::ScrollUI(-1))),
-                    KeyEvent::Left => signals.push(Signal::Render(RenderSignal::ShiftUI(1))),
-                    KeyEvent::Right => signals.push(Signal::Render(RenderSignal::ShiftUI(-1))),
-                    KeyEvent::Char('q') => {
-                        return Signal::Quit;
-                    }
-                    KeyEvent::Up | KeyEvent::Char('w') => {
-                        if self.menu.cursor_up(1) {
-                            self.menu.output(render_tx);
-                            let _ = self
-                                .lg
-                                .as_ref()
-                                .unwrap()
-                                .write(logging::LogLevel::Info, "MainMenu cursor up 1");
-                        }
-                    }
-                    KeyEvent::Down | KeyEvent::Char('s') => {
-                        if self.menu.cursor_down(1) {
-                            self.menu.output(render_tx);
-                            if let Err(e) = self
-                                .lg
-                                .as_ref()
-                                .unwrap()
-                                .write(logging::LogLevel::Info, "MainMenu cursor down 1")
-                            {
-                                let a: Arc<RenderUnitId> = RenderUnitId::new(Layer::Ui);
-                                self.err_msg_handle = Some(a.clone());
-                                render_tx.send(RenderSignal::Insert(
-                                    a,
-                                    Object::static_text(
-                                        crate::engine::types::Position3D { x: 2, y: 30, z: 1 },
-                                        format!("failed to Log Message from mainmenu: {}", e),
-                                        style::Style::default()
-                                            .set_border(Border::as_hash(Padding::square(1))),
-                                    ),
-                                ));
-                            }
-                        }
-                    }
-                    KeyEvent::Right | KeyEvent::Char('d') => match self.menu.execute(()) {
-                        Signals::Quit => {
-                            let _ = self
-                                .lg
-                                .as_ref()
-                                .unwrap()
-                                .write(logging::LogLevel::Info, "MainMenu Executing quit action");
-                            signals.push(Signal::Quit);
-                        }
-                        Signals::NewScene(s) => {
-                            let _ = self.lg.as_ref().unwrap().write(
-                                logging::LogLevel::Info,
-                                "MainMenu Executing new scene action",
-                            );
-                            signals.push(Signal::Scenes(SceneSignal::New {
-                                scene: s,
-                                signal: None,
-                            }));
-                        }
-                        Signals::None => (),
-                    },
-                    _ => {}
-                },
-                _ => {}
-            }
+    fn update(&mut self, inst: &mut Instance, _delta_time: f32) -> EngineSignal {
+        let mut output = vec![];
+        let mut events = vec![];
+        for e in inst.event_recvier.try_iter() {
+            events.push(e);
         }
-
-        if signals.len() > 0 {
-            return Signal::Batch(signals);
+        for e in events {
+            let sig = self.process_event(e);
+            match self.process_signal(inst, sig) {
+                EngineSignal::None => {}
+                other => output.push(other),
+            };
+        }
+        if output.len() == 0 {
+            EngineSignal::None
+        } else if output.len() == 1 {
+            output.pop().unwrap()
         } else {
-            return Signal::None;
+            EngineSignal::Batch(output)
         }
     }
 
@@ -192,18 +235,33 @@ impl Scene for MainMenu {
         false
     }
 
-    fn reset(&mut self) {}
+    fn reset(&mut self, ins: &mut Instance) {}
 
-    fn resume(&mut self, render_tx: &mpsc::Sender<RenderSignal>, _canvas: &Canvas) {
-        if let Err(_e) = render_tx.send(RenderSignal::Clear) {
+    fn resume(&mut self, ins: &mut Instance) {
+        if let Err(_e) = ins.render_queue.send(RenderSignal::Clear) {
             // Log that there is a problem
         }
-        self.menu.output(render_tx);
+        self.menu.output();
     }
-    #[allow(unused)]
-    fn suspend(&mut self, render_tx: &mpsc::Sender<RenderSignal>) {
-        if let Err(_e) = render_tx.send(RenderSignal::Clear) {
+    fn suspend(&mut self, ins: &mut Instance) {
+        if let Err(_e) = ins.render_queue.send(RenderSignal::Clear) {
             // Log that there is a problem
         }
     }
+}
+
+////////////////////
+//  Menu Actions  //
+////////////////////
+
+fn action_connect() -> _Sig {
+    _Sig::Batch(vec![_Sig::Connect, _Sig::LoadGameScene])
+}
+
+fn action_goto_settings() -> _Sig {
+    _Sig::SettingsScene
+}
+
+fn action_quit() -> _Sig {
+    _Sig::Quit
 }

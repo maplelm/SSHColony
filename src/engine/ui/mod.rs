@@ -34,4 +34,4 @@ pub use menu::Menu;
 pub use selector::SelectionDirection;
 pub use selector::Selector;
 pub use selector::SelectorItem;
-pub use textbox::Textbox;
+pub use textbox::TextArea;

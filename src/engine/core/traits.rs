@@ -13,7 +13,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-use crate::engine::enums::RenderSignal;
+use crate::engine::enums::{RenderSignal, SceneInitSignals};
+use crate::engine::types::Instance;
 
 use super::super::{input::Event, render::Canvas};
 use super::enums::Signal;
@@ -21,26 +22,14 @@ use std::hash::Hash;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 use std::sync::{Arc, mpsc};
 
-pub trait Scene: std::fmt::Debug {
-    fn update(
-        &mut self,
-        delta_time: f32,
-        event_rx: &mpsc::Receiver<Event>,
-        render_tx: &mpsc::Sender<RenderSignal>,
-        canvas: &Canvas,
-    ) -> Signal;
-    fn init(
-        &mut self,
-        render_tx: &mpsc::Sender<RenderSignal>,
-        signal: Option<Signal>,
-        canvas: &Canvas,
-        lg: Arc<logging::Logger>,
-    ) -> Signal;
+pub trait Scene {
+    fn update(&mut self, inst: &mut Instance, delta_time: f32) -> Signal;
+    fn init(&mut self, ins: &mut Instance, signal: SceneInitSignals) -> Signal;
     fn is_init(&self) -> bool;
-    fn suspend(&mut self, render_tx: &mpsc::Sender<RenderSignal>);
-    fn resume(&mut self, render_tx: &mpsc::Sender<RenderSignal>, canvas: &Canvas);
+    fn suspend(&mut self, ins: &mut Instance);
+    fn resume(&mut self, ins: &mut Instance);
     fn is_paused(&self) -> bool;
-    fn reset(&mut self);
+    fn reset(&mut self, ins: &mut Instance);
 }
 
 pub trait Numeric:

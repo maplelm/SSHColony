@@ -14,44 +14,54 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+use crate::engine::input::Event;
+use crate::engine::types::Network;
+
 use super::super::core::traits::Scene;
-use super::super::{Context, consts::DEFAULT_CANVAS, render::Canvas};
+use super::super::{
+    Context,
+    consts::DEFAULT_CANVAS,
+    render::{Canvas, RenderQueue},
+};
 use logging::Logger;
 use logging::Options as Opts;
 use my_term::{Terminal, term_size};
+use rand_core::OsRng;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, mpsc};
+use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret};
+
+pub struct InstanceConfig {
+    log_path: String,
+    log_level: logging::LogLevel,
+}
+
+impl InstanceConfig {
+    pub fn new(path: impl Into<String>, level: logging::LogLevel) -> Self {
+        Self {
+            log_path: path.into(),
+            log_level: level,
+        }
+    }
+}
 
 pub struct Instance {
     pub ctx: Context,
     pub term_orig: Terminal,
-    pub game_state: Vec<Box<dyn Scene>>,
     pub canvas: Canvas,
     pub logger: Arc<Logger>,
-}
-
-impl Default for Instance {
-    fn default() -> Self {
-        let mut canvas = DEFAULT_CANVAS;
-        if let Some(size) = term_size() {
-            canvas.width = size.0 as usize;
-            canvas.height = size.1 as usize;
-        }
-        let mut logpath = PathBuf::new();
-        logpath.set_file_name("./logs/");
-
-        Self {
-            ctx: Context::new(),
-            term_orig: Terminal::default(),
-            game_state: vec![],
-            canvas: canvas,
-            logger: Arc::new(Logger::new(Opts::default()).unwrap()),
-        }
-    }
+    pub net: Network,
+    pub render_queue: RenderQueue,
+    pub event_recvier: mpsc::Receiver<Event>,
+    pub tick_rate: u16,
 }
 
 impl Instance {
-    pub fn new(init_scene: Box<dyn Scene>, log_path: &str, log_level: logging::LogLevel) -> Self {
+    pub fn new(
+        config: InstanceConfig,
+        queue: RenderQueue,
+        event_rx: mpsc::Receiver<Event>,
+    ) -> Self {
         let mut canvas = DEFAULT_CANVAS;
         if let Some(size) = term_size() {
             canvas.width = size.0 as usize;
@@ -60,13 +70,19 @@ impl Instance {
         Self {
             ctx: Context::new(),
             term_orig: Terminal::default(),
-            game_state: vec![init_scene],
             canvas: canvas,
-            logger: Arc::new(Logger::new(Opts::default().set_lvl(log_level)).unwrap()),
+            logger: Arc::new(
+                Logger::new(
+                    Opts::default()
+                        .set_lvl(config.log_level)
+                        .set_path(config.log_path.as_str()),
+                )
+                .unwrap(),
+            ),
+            net: Network::default(),
+            render_queue: queue,
+            event_recvier: event_rx,
+            tick_rate: 0,
         }
-    }
-
-    pub fn add_scene(&mut self, s: Box<dyn Scene>) {
-        self.game_state.push(s);
     }
 }

@@ -16,40 +16,31 @@ limitations under the License.
 
 // The idea hear is the same as contexts in golang.
 // a veriable that manages lifetimes
-use std::time::{Instant, Duration};
+use crate::engine::error::{Error, ErrorKind};
 use std::sync::{
-    Arc,
-    Weak,
-    RwLock,
-    atomic::{
-        Ordering,
-        AtomicBool
-    }
+    Arc, RwLock, Weak,
+    atomic::{AtomicBool, Ordering},
 };
-use super::Error::{self, ContextError};
+use std::time::{Duration, Instant};
 
+#[derive(Debug)]
 struct InternalContext {
-    created: RwLock<Instant>,
+    created: Instant,
     ttl: Option<Duration>,
-    parent: Option<Weak<InternalContext>>,
-    alive: Arc<AtomicBool>,
+    parent: Weak<InternalContext>,
+    alive: AtomicBool,
 }
 
 impl InternalContext {
     fn is_alive(&self) -> bool {
-        if let Some(ptr) = &self.parent {
-            if let Some(p) = Weak::upgrade(&ptr) {
-                if !Context(p).is_alive() {
-                    return false;
-                } 
-            } else {
+        if let Some(p) = Weak::upgrade(&self.parent) {
+            if !Context(p).is_alive() {
                 return false;
             }
         }
-
         // Check if there is a ttl
-        if let Some(ttl) = &self.ttl {
-            if self.created.read().unwrap().elapsed() >= *ttl {
+        if let Some(ttl) = self.ttl.as_ref() {
+            if self.created.elapsed() >= *ttl {
                 return false;
             }
         }
@@ -58,106 +49,80 @@ impl InternalContext {
     }
 }
 
+#[derive(Debug)]
 pub struct Context(Arc<InternalContext>);
 
 impl Context {
     pub fn new() -> Self {
         Context(Arc::new(InternalContext {
-            created: RwLock::new(Instant::now()),
+            created: Instant::now(),
             ttl: None,
-            parent: None,
-            alive: Arc::new(AtomicBool::new(true)),
+            parent: Weak::new(),
+            alive: AtomicBool::new(true),
         }))
     }
 
-    pub fn cancel(&mut self) {
-        self.0.alive.store(false, Ordering::SeqCst);
+    pub fn cancel(&self) {
+        self.0.alive.store(false, Ordering::SeqCst)
     }
 
     pub fn new_with_duration(ttl: Duration) -> Self {
         Context(Arc::new(InternalContext {
-            created: RwLock::new(Instant::now()),
+            created: Instant::now(),
             ttl: Some(ttl),
-            parent: None,
-            alive: Arc::new(AtomicBool::new(true)),
+            parent: Weak::new(),
+            alive: AtomicBool::new(true),
         }))
     }
 
-    fn fields(&self) -> &Arc<InternalContext> {
-        return &self.0;
-    }
-
-
-    pub fn reset(&self) -> Result<(), Error>{
-        // validate that Parent is still alive
-        if let Some(ptr) = &self.fields().parent {
-            if let Some(p) = Weak::upgrade(&ptr) {
-                if !p.is_alive() {
-                    return Err(ContextError(String::from("Parent Context Dead")));
-                }
-            }
-        }
-
-        self.fields().alive.load(Ordering::SeqCst);
-        let mut r = self.fields().created.write().unwrap();
-        *r = Instant::now();
-        Ok(())
-    }
-
     pub fn child(&self) -> Context {
-        Context(Arc::new(InternalContext{
-            created: RwLock::new(Instant::now()),
+        Context(Arc::new(InternalContext {
+            created: Instant::now(),
             ttl: None,
-            parent: Some(Arc::downgrade(&self.0)),
-            alive: Arc::new(AtomicBool::new(true)),
+            parent: Arc::downgrade(&self.0),
+            alive: AtomicBool::new(true),
         }))
     }
 
     pub fn with_duration(&self, ttl: Duration) -> Context {
         Context(Arc::new(InternalContext {
-            created: RwLock::new(Instant::now()),
+            created: Instant::now(),
             ttl: Some(ttl),
-            parent: Some(Arc::downgrade(&self.0)),
-            alive: Arc::new(AtomicBool::new(true)),
+            parent: Arc::downgrade(&self.0),
+            alive: AtomicBool::new(true),
         }))
     }
-
 
     pub fn is_alive(&self) -> bool {
         return self.0.is_alive();
     }
 }
 
-
 #[cfg(test)]
 mod test {
     use crate::engine::Context;
     use std::{
-        thread::{
-        spawn,
-        sleep
-        },
-        time::Duration
+        thread::{sleep, spawn},
+        time::Duration,
     };
 
     #[test]
     fn threaded_lifetime_test() {
         let r: Context = Context::new();
         let c: Context = r.child();
-        let h1 =spawn(move || {
+        let h1 = spawn(move || {
             while c.is_alive() {
                 sleep(Duration::from_nanos(50));
             }
             assert_eq!(c.is_alive(), false);
         });
-        let h2 = spawn( move || {
+        let h2 = spawn(move || {
             sleep(Duration::from_nanos(200));
             drop(r);
         });
 
         _ = h1.join();
         _ = h2.join();
-
     }
 
     #[test]
@@ -199,6 +164,5 @@ mod test {
         assert_eq!(c.is_alive(), true);
         sleep(Duration::from_millis(25));
         assert_eq!(c.is_alive(), false);
-
     }
 }

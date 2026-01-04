@@ -13,20 +13,26 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-use super::super::traits::Storeable;
-use super::super::types::{self as enginetypes, Position};
+use crate::engine::render::Text;
+use crate::engine::render::text::Base;
+use crate::engine::render::text::Static;
+use crate::engine::ui::style::Style;
+use std::fmt::Write;
+use std::io::Write as iowrite;
+
 use super::{
-    super::ui::style::{Align, Justify, Measure, Style},
-    Camera, Canvas,
-    sprite::{self, Glyph, Sprite},
-    text::Textbox,
+    super::{
+        traits::Storeable,
+        types::{self as enginetypes, Position, Position3D},
+        ui::Border,
+    },
+    Camera, Canvas, Glyph, Sprite, Textbox, TextboxSlice,
 };
-use crate::engine::{types::Position3D, ui::Border};
-use my_term::Character;
 use my_term::color::{Background, Foreground};
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::Display,
+    io::Lines,
     sync::{atomic::AtomicUsize, mpsc},
     time::{Duration, Instant},
 };
@@ -41,6 +47,37 @@ pub enum Ui {
     RadioButtons,
 }
 
+#[derive(Debug, Clone)]
+pub enum GlyphType {
+    Single(Glyph),
+    Multi {
+        frames: Vec<Glyph>,
+        tick_rate: Duration,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub enum TextType {
+    Single(Vec<Text>),
+    Multi {
+        frames: Vec<Base>,
+        tick_rate: Duration,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub enum ObjectData {
+    Sprite {
+        pos: Position3D<i32>,
+        glyph: GlyphType,
+    },
+    Text {
+        pos: Position3D<i32>,
+        data: TextType,
+        style: Style,
+    },
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Object {
     Sprite(Sprite),
@@ -48,16 +85,52 @@ pub enum Object {
 }
 
 impl Object {
+    pub fn new_sprite_static(glyph: Glyph, pos: Position3D<i32>) -> Self {
+        Self::Sprite(Sprite::new_static(glyph, pos))
+    }
+
+    pub fn new_sprite_dynamic(
+        glyphs: Vec<Glyph>,
+        pos: Position3D<i32>,
+        tick_rate: Duration,
+    ) -> Self {
+        Self::Sprite(Sprite::new_dynamic(glyphs, pos, tick_rate))
+    }
+
+    pub fn new_text_static(
+        pos: Position3D<i32>,
+        lines: Vec<Text>,
+        style: Style,
+        can: &Canvas,
+    ) -> Self {
+        Self::Text(Textbox::new_static(pos, lines, style, can))
+    }
+
+    pub fn new_text_dynamic(pos: Position3D<i32>, frames: Vec<Base>, tick_rate: Duration) -> Self {
+        Self::Text(Textbox::new_dynamic(pos, frames, tick_rate))
+    }
+
+    pub fn from_data(data: impl Into<ObjectData>, canvas: &Canvas) -> Self {
+        match data.into() {
+            ObjectData::Sprite { pos, glyph } => match glyph {
+                GlyphType::Single(c) => Self::Sprite(Sprite::new_static(c, pos)),
+                GlyphType::Multi { frames, tick_rate } => {
+                    Self::Sprite(Sprite::new_dynamic(frames, pos, tick_rate))
+                }
+            },
+            ObjectData::Text { pos, data, style } => match data {
+                TextType::Single(t) => Self::Text(Textbox::new_static(pos, t, style, canvas)),
+                TextType::Multi { frames, tick_rate } => {
+                    Self::Text(Textbox::new_dynamic(pos, frames, tick_rate))
+                }
+            },
+        }
+    }
+
     pub fn pos(&self) -> ObjPosition {
         match self {
-            Self::Sprite(s) => match s {
-                Sprite::Static(s) => s.pos,
-                Sprite::Dynamic(d) => d.pos,
-            },
-            Self::Text(t) => match t {
-                Textbox::Static(s) => s.pos,
-                Textbox::Dynamic(d) => d.pos,
-            },
+            Self::Sprite(s) => s.pos(),
+            Self::Text(t) => t.pos(),
         }
     }
 
@@ -75,120 +148,95 @@ impl Object {
         }
     }
 
-    pub fn draw(&mut self, can: &Canvas, cam: &Camera, output: &mut String, reset: &str) {
+    #[deny(unused)]
+    pub fn draw(&mut self, can: &Canvas, cam: &Camera, stream: &mut std::io::Stdout, _reset: &str) {
         if !cam.in_view(self, can) {
             return;
         }
+        let width: i32 = self.width(can) as i32;
+        let height: i32 = self.height(can) as i32;
 
-        let pos = cam.get_screen_pos(self.pos());
-        let l_offset = if pos.x < 0 { pos.x.abs() } else { 0 };
-        let r_offset = if pos.x + self.width(can) as i32 > can.width as i32 {
-            pos.x + self.width(can) as i32 - can.width as i32
+        let virt_pos: Position<i32> = self.pos().into();
+        let scr_pos: Position<i32> = cam.get_screen_pos(self.pos());
+        let l_edge: i32 = virt_pos.x;
+        let r_edge: i32 = virt_pos.x + width;
+        let t_edge: i32 = virt_pos.y;
+        let b_edge: i32 = virt_pos.y + height;
+        let cam_l_edge: i32 = cam.x();
+        let cam_r_edge: i32 = cam.x() + cam.width() as i32;
+        let cam_t_edge: i32 = cam.y();
+        let cam_b_edge: i32 = cam.y() + cam.height() as i32;
+
+        let l_delta: usize = if l_edge < cam_l_edge {
+            (cam_l_edge - l_edge) as usize
         } else {
             0
         };
-        let t_offset = if pos.y < 0 { pos.y.abs() } else { 0 };
-        let b_offset = if pos.y + self.height(can) as i32 > can.height as i32 {
-            pos.y + self.height(can) as i32 - can.height as i32
+
+        let r_delta: usize = if r_edge > cam_r_edge {
+            (r_edge - cam_r_edge) as usize
         } else {
             0
         };
 
-        output.push_str(&format!("\x1b[{};{}f", pos.x + l_offset, pos.y + b_offset));
+        let t_delta: usize = if t_edge < cam_t_edge {
+            (cam_t_edge - t_edge) as usize
+        } else {
+            0
+        };
+
+        let b_delta: usize = if b_edge > cam_b_edge {
+            (b_edge - cam_b_edge) as usize
+        } else {
+            0
+        };
+
+        let _ = write!(
+            stream,
+            "\x1b[{};{}fObject Edges (l,r,t,b): {},{},{},{} | Cam Edges (l,r,t,b): {},{},{},{}  |",
+            can.height - 3,
+            0,
+            l_edge,
+            r_edge,
+            t_edge,
+            b_edge,
+            cam_l_edge,
+            cam_r_edge,
+            cam_t_edge,
+            cam_b_edge
+        );
+        let _ = write!(
+            stream,
+            "\x1b[{};{}fOffsets (l,r,t,b): {},{},{},{} | screen pos (x,y): {},{} | world pos (x,y): {},{}     ",
+            can.height - 2,
+            0,
+            l_delta,
+            r_delta,
+            t_delta,
+            b_delta,
+            scr_pos.x,
+            scr_pos.y,
+            virt_pos.x,
+            virt_pos.y
+        );
+        let cursor_pos: Position<i32> = Position {
+            x: scr_pos.x + l_delta as i32,
+            y: scr_pos.y + t_delta as i32,
+        };
+        let _ = write!(
+            stream,
+            "move cursor (x, y): {},{} |",
+            cursor_pos.x, cursor_pos.y,
+        );
+
+        let _ = write!(stream, "\x1b[{};{}f", cursor_pos.y, cursor_pos.x,);
         match self {
-            Self::Sprite(s) => match s {
-                Sprite::Static(s) => match &s.base.sprite {
-                    Glyph::Small(c) => output.push_str(&format!("{}", c)),
-                    Glyph::Block(b) => {
-                        for (i, l) in b.iter().enumerate() {
-                            if i == 0 {
-                                output.push_str(&format!(
-                                    "{}",
-                                    l.slice(l_offset as usize, l.len() - r_offset as usize)
-                                ));
-                            } else {
-                                output.push_str(&format!(
-                                    "\x1b[{};{}f{}",
-                                    pos.x + l_offset + i as i32,
-                                    pos.y + b_offset + i as i32,
-                                    l.slice(l_offset as usize, l.len() - r_offset as usize)
-                                ));
-                            }
-                        }
-                    }
-                },
-                Sprite::Dynamic(d) => match &d.frames[d.cursor].sprite {
-                    Glyph::Small(c) => output.push_str(&format!("{}", c)),
-                    Glyph::Block(b) => {
-                        for (i, l) in b.iter().enumerate() {
-                            if i == 0 {
-                                output.push_str(&format!(
-                                    "{}",
-                                    l.slice(l_offset as usize, l.len() - r_offset as usize)
-                                ));
-                            } else {
-                                output.push_str(&format!(
-                                    "\x1b[{};{}f{}",
-                                    pos.x + l_offset + i as i32,
-                                    pos.y + b_offset + i as i32,
-                                    l.slice(l_offset as usize, l.len() - r_offset as usize)
-                                ));
-                            }
-                        }
-                    }
-                },
-            },
-            Self::Text(t) => match t {
-                Textbox::Static(s) => {
-                    for (i, l) in s
-                        .base
-                        .slice(
-                            t_offset as usize,
-                            b_offset as usize,
-                            l_offset as usize,
-                            r_offset as usize,
-                        )
-                        .lines
-                        .iter()
-                        .enumerate()
-                    {
-                        if i == 0 {
-                            output.push_str(&format!("{l}"));
-                        } else {
-                            output.push_str(&format!(
-                                "\x1b[{};{}f{}",
-                                pos.x + l_offset + i as i32,
-                                pos.y + b_offset + i as i32,
-                                l
-                            ));
-                        }
-                    }
-                }
-                Textbox::Dynamic(d) => {
-                    for (i, l) in d.frames[d.cursor]
-                        .slice(
-                            t_offset as usize,
-                            b_offset as usize,
-                            l_offset as usize,
-                            r_offset as usize,
-                        )
-                        .lines
-                        .iter()
-                        .enumerate()
-                    {
-                        if i == 0 {
-                            output.push_str(&format!("{l}"));
-                        } else {
-                            output.push_str(&format!(
-                                "\x1b[{};{}f{}",
-                                pos.x + l_offset + i as i32,
-                                pos.y + b_offset + i as i32,
-                                l
-                            ));
-                        }
-                    }
-                }
-            },
+            Self::Sprite(s) => {
+                let _ = write!(stream, "{s}");
+            }
+            Self::Text(t) => {
+                let _ = write!(stream, "{}", t.slice(l_delta, r_delta, t_delta, b_delta));
+            }
         }
     }
 

@@ -14,8 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+use crate::engine::Instance;
 use crate::engine::enums::RenderSignal;
+use crate::engine::enums::SceneInitSignals;
 use crate::engine::enums::Signal as EngineSignal;
+use crate::engine::render::RenderQueue;
+use crate::engine::render::Text;
 use crate::engine::render::clear as render_clear;
 use crate::engine::traits::Scene;
 use crate::engine::ui::BorderSprite as Bsprite;
@@ -68,22 +72,26 @@ struct NewWorldForm {
 
 #[derive(Debug)]
 pub struct LoadGame {
-    menu: Menu<(), Signal>,
+    menu: Menu<Signal>,
     is_init: bool,
 }
 impl LoadGame {
-    pub fn new() -> Box<dyn Scene> {
+    pub fn new(render_queue: RenderQueue) -> Box<dyn Scene> {
+        let s = Style::default()
+            .set_size(Size::rect(Measure::Percent(100), Measure::Percent(100)))
+            .set_justify(Justify::Center)
+            .set_border(Border::as_block(Padding::square(1)));
+        let fg: u8 = s.fg().clone().into();
+        let bg: u8 = s.bg().clone().into();
         Box::new(Self {
-            menu: Menu::<(), Signal>::new(
+            menu: Menu::<Signal>::new(
                 0,
                 0,
-                Style::default()
-                    .set_size(Size::rect(Measure::Percent(100), Measure::Percent(100)))
-                    .set_justify(Justify::Center)
-                    .set_border(Border::as_block(Padding::square(1))),
+                render_queue,
+                s,
                 vec![
-                    MenuItem::new("Play Now".to_string(), |z| Signal::NewWorld),
-                    MenuItem::new("Back".to_string(), |z| Signal::Back),
+                    MenuItem::new(Text::from("Play Now", fg, bg), || Signal::NewWorld),
+                    MenuItem::new(Text::from("Back", fg, bg), || Signal::Back),
                 ],
             ),
             is_init: false,
@@ -92,17 +100,11 @@ impl LoadGame {
 }
 
 impl Scene for LoadGame {
-    fn init(
-        &mut self,
-        render_tx: &Sender<RenderSignal>,
-        signal: Option<EngineSignal>,
-        canvas: &Canvas,
-        lg: Arc<logging::Logger>,
-    ) -> EngineSignal {
-        if let Err(_e) = render_clear(render_tx) {
+    fn init(&mut self, ins: &mut Instance, sig: SceneInitSignals) -> EngineSignal {
+        if let Err(_e) = render_clear(&ins.render_queue) {
             // log that there was a problem clearing the screen
         }
-        self.menu.output(render_tx);
+        self.menu.output();
         EngineSignal::None
     }
 
@@ -114,50 +116,49 @@ impl Scene for LoadGame {
         false
     }
 
-    fn reset(&mut self) {}
+    fn reset(&mut self, ins: &mut Instance) {}
 
-    fn resume(&mut self, render_tx: &Sender<RenderSignal>, canvas: &Canvas) {
-        if let Err(_e) = render_tx.send(RenderSignal::Clear) {
+    fn resume(&mut self, ins: &mut Instance) {
+        if let Err(_e) = ins.render_queue.send(RenderSignal::Clear) {
             // Log that there was an error
         }
-        self.menu.output(render_tx);
+        self.menu.output();
     }
 
-    fn suspend(&mut self, render_tx: &Sender<RenderSignal>) {
-        if let Err(_e) = render_tx.send(RenderSignal::Clear) {
+    fn suspend(&mut self, ins: &mut Instance) {
+        if let Err(_e) = ins.render_queue.send(RenderSignal::Clear) {
             // Log that there was an error
         }
     }
 
-    fn update(
-        &mut self,
-        delta_time: f32,
-        event: &Receiver<Event>,
-        render_tx: &Sender<RenderSignal>,
-        canvas: &Canvas,
-    ) -> EngineSignal {
+    fn update(&mut self, inst: &mut Instance, delta_time: f32) -> EngineSignal {
+        let canvas = &inst.canvas;
         let mut batch: Vec<EngineSignal> = Vec::new();
-        for event in event.try_iter() {
+        let mut events = vec![];
+        for e in inst.event_recvier.try_iter() {
+            events.push(e);
+        }
+        for event in events {
             match event {
                 Event::Keyboard(key) => match key {
                     KeyEvent::Char('s') => {
                         if self.menu.cursor_down(1) {
-                            self.menu.output(render_tx)
+                            self.menu.output()
                         }
                     }
                     KeyEvent::Char('w') => {
                         if self.menu.cursor_up(1) {
-                            self.menu.output(render_tx)
+                            self.menu.output()
                         }
                     }
-                    KeyEvent::Char('d') => match self.menu.execute(()) {
+                    KeyEvent::Char('d') => match self.menu.execute() {
                         Signal::Back => {
                             batch.push(EngineSignal::Scenes(crate::engine::enums::SceneSignal::Pop))
                         }
                         Signal::NewWorld => batch.push(EngineSignal::Scenes(
                             crate::engine::enums::SceneSignal::New {
                                 scene: CreateWorld::new(),
-                                signal: None,
+                                signal: SceneInitSignals::None,
                             },
                         )),
                         _ => {}
@@ -174,7 +175,7 @@ impl Scene for LoadGame {
     }
 }
 
-fn add_load_files_to_menu(menu: &mut Menu<Option<DirEntry>, Signal>, files: &Vec<DirEntry>) {
+fn add_load_files_to_menu(menu: &mut Menu<Signal>, files: &Vec<DirEntry>) {
     for (index, save) in files.iter().enumerate() {
         // Checking Extntion
         if !match save.path().extension() {
@@ -191,8 +192,12 @@ fn add_load_files_to_menu(menu: &mut Menu<Option<DirEntry>, Signal>, files: &Vec
         }
 
         menu.add(MenuItem::new(
-            "Label".to_string(),
-            |dir: Option<DirEntry>| load_world(dir),
+            Text::from(
+                "Label",
+                menu.style().fg().clone(),
+                menu.style().bg().clone(),
+            ),
+            || Signal::None,
         ));
     }
 }

@@ -22,14 +22,14 @@ use super::{
     Border, BorderSprite,
     style::{Align, Justify, Measure},
 };
-use crate::engine::render::{Layer, Object, RenderUnitId, text, Line};
+use crate::engine::render::{Layer, Object, ObjectData, RenderUnitId, Text, TextType, Textbox};
 use my_term::color::{Background, Foreground};
 
 pub struct Button<I, O> {
     render_id: Weak<RenderUnitId>,
-    text: Vec<Line>,
-    pos: Position<i32>,
+    text: Vec<Text>,
     style: Style,
+    pos: Position<i32>,
     select_color: Coloring,
     selected: bool,
     action: fn(I) -> O,
@@ -38,15 +38,16 @@ pub struct Button<I, O> {
 impl<I, O> Button<I, O> {
     pub fn new(
         pos: Position<i32>,
-        text: Vec<Line>,
+        text: Vec<Text>,
+        style: Style,
         select_color: Coloring,
         action: fn(I) -> O,
     ) -> Self {
         Self {
             render_id: Weak::new(),
             text,
-            pos: Position { x: pos.x, y: pos.y },
-            style: Style::default(),
+            pos,
+            style,
             select_color,
             selected: false,
             action: action,
@@ -54,16 +55,12 @@ impl<I, O> Button<I, O> {
     }
 
     pub fn output(&mut self, render_tx: &Sender<RenderSignal>) {
-        let (fg, bg) = self.color_output_init();
+        let (fg, bg) = self.current_colors();
         match self.render_id.upgrade() {
             Some(arc_id) => {
                 render_tx.send(RenderSignal::Update(
                     arc_id,
-                    Object::Text(text::Textbox::Static(text::Static{
-                        pos: self.pos,
-                        base: text::Base::new(lines, style, can)
-                    }))
-                    Object::static_text(self.pos.into(), self.text.clone(), self.style.clone()),
+                    ObjectData::Text { pos: self.pos.clone().into(), data: TextType::Single(self.text.clone()), style:self.style.clone() }
                 ));
             }
             None => {
@@ -71,17 +68,17 @@ impl<I, O> Button<I, O> {
                 self.render_id = Arc::downgrade(&arc_id);
                 render_tx.send(RenderSignal::Insert(
                     arc_id,
-                    Object::static_text(self.pos.into(), self.text.clone(), self.style.clone()),
+                    ObjectData::Text { pos: self.pos.clone().into(), data: TextType::Single(self.text.clone()), style: self.style.clone() },
                 ));
             }
         }
     }
 
-    fn color_output_init(&self) -> (Option<&Foreground>, Option<&Background>) {
+    fn current_colors(&self) -> (Foreground, Background) {
         if self.selected {
-            (self.select_color.fg(), self.select_color.bg())
+            (self.select_color.foreground.clone(), self.select_color.background.clone())
         } else {
-            (self.style.fg(), self.style.bg())
+            (self.style.fg().clone(), self.style.bg().clone())
         }
     }
 

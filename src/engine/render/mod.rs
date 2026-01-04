@@ -21,15 +21,17 @@ mod enums;
 mod functions;
 mod render_thread;
 mod render_unit;
-pub mod sprite;
-pub mod text;
+mod sprite;
+mod text;
 
 pub use camera::Camera;
 pub use canvas::Canvas;
-pub use drawable::{Line, LineSlice};
+pub use drawable::{Character as Char, Glyph, PushChar, PushText, Text};
 pub use enums::*;
 pub use functions::*;
-pub use render_thread::render_thread;
+pub use render_thread::{RenderQueue, render_thread};
 pub use render_unit::RenderUnitId;
+pub use sprite::Sprite;
+pub use text::{Textbox, TextboxSlice};
 
 use render_unit::RenderUnit;

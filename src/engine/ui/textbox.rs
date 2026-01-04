@@ -18,7 +18,7 @@ use super::style::Style;
 use crate::engine::{
     enums::RenderSignal,
     input::KeyEvent,
-    render::{Canvas, Layer, Object, RenderUnitId},
+    render::{Canvas, Char, Layer, Object, ObjectData, RenderUnitId, Text, TextType},
     types::Position,
     ui::style::Measure,
 };
@@ -28,36 +28,32 @@ use std::sync::{
 };
 
 #[derive(Debug)]
-pub struct Textbox {
+pub struct TextArea {
     pub render_id: Weak<RenderUnitId>,
     position: Position<i32>,
-    marker: char,
+    marker: Char,
     style: Style,
-    value: String,
+    value: Vec<Text>,
     place_holder: Option<String>,
-    cursor: usize,
+    cursor: Position<usize>,
 }
 
-impl Textbox {
+impl TextArea {
     pub fn new(
         x: i32,
         y: i32,
         marker: char,
-        style: Option<Style>,
+        style: Style,
         placeholder: Option<String>,
     ) -> Self {
         Self {
             render_id: Weak::new(),
             position: Position { x: x, y: y },
-            marker: marker,
-            style: if let Some(s) = style {
-                s
-            } else {
-                Style::default()
-            },
-            value: String::new(),
+            marker: Char::new(marker, style.fg(), style.bg()),
+            value: vec![Text::from("", style.fg(), style.bg())],
+            style,
             place_holder: placeholder,
-            cursor: 0,
+            cursor: Position {x: 0, y: 0},
         }
     }
 
@@ -66,8 +62,8 @@ impl Textbox {
             if let Some(b) = self.style.border.as_ref() {
                 w.get(canvas.width) as usize
                     - (self.style.border.as_ref().unwrap().width()
-                        + self.style.border.as_ref().unwrap().get_pad_left()
-                        + self.style.border.as_ref().unwrap().get_pad_right()
+                        + self.style.border.as_ref().unwrap().l_pad()
+                        + self.style.border.as_ref().unwrap().r_pad()
                         + 1) as usize
             } else {
                 w.get(canvas.width) as usize - 1
@@ -77,8 +73,12 @@ impl Textbox {
         }
     }
 
-    pub fn get_value(&self) -> &str {
-        &self.value
+    pub fn get_value(&self) -> Vec<String> {
+        let mut v = vec![];
+        for each in self.value.iter() {
+            v.push(each.to_string());
+        }
+        v
     }
 
     pub fn process_key(
@@ -90,33 +90,92 @@ impl Textbox {
         let mut dirty = true;
         match key {
             KeyEvent::Backspace => {
-                if self.value.len() > 0 && self.cursor > 0 {
-                    if self.cursor == self.value.len() {
-                        self.value.pop();
-                    } else {
-                        self.value.remove(self.cursor);
+                let x = self.cursor.x;
+                let y = self.cursor.y;
+                let rows = self.value.len();
+                let cols = self.value[y].len();
+
+                if rows == 1 {
+                    if x == cols && cols > 0{
+                        self.value[0].pop();
+                        self.cursor.x -= 1;
+                    } else if x != 0 {
+                        self.value[0].remove(x);
+                        self.cursor.x -= 1;
                     }
-                    self.cursor -= 1;
+                } else {
+                    if x == 0 && y == 0 {
+
+                    } else if x != 0 && x == cols && cols > 0{
+                        self.value[y].pop();
+                        self.cursor.x -= 1;
+                    } else if x != 0 && x != cols {
+                        self.value[y].remove(x);
+                        self.cursor.x -= 1;
+                    } else if x == 0 && y != 0 {
+                        let val = self.value.remove(y);
+                        self.value[y-1].join(val);
+                        self.cursor.x = self.value[y].len();
+                    }
                 }
             }
             KeyEvent::Char(c) => {
                 if self.max_len_value(canvas) > self.value.len() {
-                    if self.cursor == self.value.len() {
-                        self.value.push(c);
+                    let x = self.cursor.x;
+                    let y = self.cursor.y;
+                    let rows = self.value.len();
+                    let cols = self.value[y].len();
+
+                    if x == cols {
+                        self.value[y].push(Char::new(c, self.style.fg(), self.style.bg()));
                     } else {
-                        self.value.insert(self.cursor, c);
+                        self.value[y].insert(x, Char::new(c, self.style.fg(), self.style.bg()));
                     }
-                    self.cursor += 1;
+                    self.cursor.x += 1;
+                }
+            }
+            KeyEvent::Enter => {
+                let x = self.cursor.x;
+                let y = self.cursor.y;
+                let rows = self.value.len();
+                let cols = self.value[y].len();
+                if x < cols {
+                    let (l, r) = self.value[y].clone().split(x);
+                    self.value[y] = l;
+                    self.value.insert(y, r);
+                    self.cursor.y += 1;
+                    self.cursor.x = 0;
+                } else if x >= cols {
+                    self.value.insert(y, Text::new());
+                    self.cursor.y +=1;
+                    self.cursor.x = 0;
+                }
+            }
+            KeyEvent::Up => {
+                if self.cursor.y > 0 {
+                    self.cursor.y -= 1;
+                    if self.cursor.x > self.value[self.cursor.y].len() {
+                        self.cursor.x = self.value[self.cursor.y].len();
+                    }
+                }
+
+            }
+            KeyEvent::Down => {
+                if self.cursor.y < self.value.len() {
+                    self.cursor.y += 1;
+                    if self.cursor.x > self.value[self.cursor.y].len() {
+                        self.cursor.x = self.value[self.cursor.y].len();
+                    }
                 }
             }
             KeyEvent::Left => {
-                if self.cursor > 0 {
-                    self.cursor -= 1;
+                if self.cursor.x > 0 {
+                    self.cursor.x -= 1;
                 }
             }
             KeyEvent::Right => {
-                if self.cursor < self.value.len() {
-                    self.cursor += 1
+                if self.cursor.x < self.value[self.cursor.y].len() {
+                    self.cursor.x += 1
                 }
             }
             _ => {
@@ -124,28 +183,29 @@ impl Textbox {
             }
         }
         if dirty {
-            self.output(render_tx);
+            self.output(render_tx, canvas);
         }
     }
 
     pub fn output(
         &mut self,
         render_tx: &Sender<RenderSignal>,
+        canvas: &Canvas,
     ) -> Result<(), SendError<RenderSignal>> {
         let mut out = self.value.clone();
-        out.push(self.marker);
+        out[self.cursor.y].insert(self.cursor.x, self.marker.clone());
         match self.render_id.upgrade() {
             None => {
                 let arc_id = RenderUnitId::new(Layer::Ui);
                 self.render_id = Arc::downgrade(&arc_id);
                 render_tx.send(RenderSignal::Insert(
                     arc_id,
-                    Object::static_text(self.position.into(), out, self.style.clone()),
+                    ObjectData::Text { pos: self.position.clone().into(), data: TextType::Single(out), style: self.style.clone() },
                 ))
             }
             Some(arc) => render_tx.send(RenderSignal::Update(
                 arc,
-                Object::static_text(self.position.into(), out, self.style.clone()),
+                ObjectData::Text {pos: self.position.clone().into(), data: TextType::Single(out), style: self.style.clone()}
             )),
         }
     }

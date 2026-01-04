@@ -15,7 +15,8 @@ limitations under the License.
 */
 
 use crate::engine::{
-    enums::{RenderSignal, Signal as EngineSignal},
+    Instance,
+    enums::{RenderSignal, SceneInitSignals, Signal as EngineSignal},
     input::Event as InputEvent,
     render::Canvas,
     traits::Scene,
@@ -44,13 +45,7 @@ impl PlayGame {
 }
 
 impl Scene for PlayGame {
-    fn init(
-        &mut self,
-        render_tx: &mpsc::Sender<RenderSignal>,
-        signal: Option<EngineSignal>,
-        _canvas: &Canvas,
-        lg: Arc<logging::Logger>,
-    ) -> EngineSignal {
+    fn init(&mut self, ins: &mut Instance, sig: SceneInitSignals) -> EngineSignal {
         EngineSignal::None
     }
 
@@ -58,13 +53,7 @@ impl Scene for PlayGame {
         self.init_complete
     }
 
-    fn update(
-        &mut self,
-        _delta_time: f32,
-        event: &mpsc::Receiver<InputEvent>,
-        render_tx: &mpsc::Sender<RenderSignal>,
-        _canvas: &Canvas,
-    ) -> EngineSignal {
+    fn update(&mut self, inst: &mut Instance, _delta_time: f32) -> EngineSignal {
         EngineSignal::None
     }
 
@@ -72,9 +61,9 @@ impl Scene for PlayGame {
         self.paused
     }
 
-    fn reset(&mut self) {}
+    fn reset(&mut self, ins: &mut Instance) {}
 
-    fn resume(&mut self, render_tx: &mpsc::Sender<RenderSignal>, _canvas: &Canvas) {}
+    fn resume(&mut self, ins: &mut Instance) {}
 
-    fn suspend(&mut self, render_tx: &mpsc::Sender<RenderSignal>) {}
+    fn suspend(&mut self, ins: &mut Instance) {}
 }

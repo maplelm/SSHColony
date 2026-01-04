@@ -14,5 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 use super::super::Context;
+use crate::engine::AudioMsg;
+use std::sync::mpsc;
 
-pub fn audio_thread(ctx: Context) {}
+pub fn audio_thread(ctx: Context, recvier: mpsc::Receiver<AudioMsg>) {}

@@ -90,53 +90,18 @@ impl Camera {
     }
 
     pub fn in_view(&self, o: &Object, canvas: &Canvas) -> bool {
-        if o.is_text() {
-            let sp: Position3D<i32> = o.pos();
-            let size: Position3D<i32> = Position3D {
-                x: o.width(canvas) as i32,
-                y: o.height(canvas) as i32,
-                z: 1,
-            };
-            let ep: Position3D<i32> = o.pos().join(size);
-            let tx_lower = sp.x;
-            let tx_upper = sp.x + size.x;
-            let ty_lower = sp.y;
-            let ty_upper = sp.y + size.y;
-            let cx_lower = self.x();
-            let cx_upper = self.x() + self.width() as i32;
-            let cy_lower = self.y();
-            let cy_upper = self.y() + self.height() as i32;
-            let tx_range = (sp.x - size.x).abs();
-            let ty_range = (sp.y - size.y).abs();
-            let cx_range = (self.x - self.width as i32).abs();
-            let cy_range = (self.y - self.height as i32).abs();
-            let mut x_inbound: bool = false;
-            let mut y_inbound: bool = false;
+        let o_pos = o.pos();
+        let o_left = o_pos.x;
+        let o_right = o_pos.x + o.width(canvas) as i32;
+        let o_top = o_pos.y;
+        let o_bot = o_pos.y + o.height(canvas) as i32;
 
-            if tx_range <= cx_range {
-                x_inbound = (tx_lower <= cx_upper && tx_lower >= cx_lower)
-                    || (tx_upper >= cx_lower && tx_upper <= cx_upper);
-            } else {
-                x_inbound = (cx_lower <= tx_upper && cx_lower >= tx_lower)
-                    || (cx_upper >= tx_lower && cx_upper <= tx_upper);
-            }
+        let c_left = self.x();
+        let c_right = self.x() + self.width() as i32;
+        let c_top = self.y();
+        let c_bot = self.y() + self.height() as i32;
 
-            if ty_range <= cy_range {
-                y_inbound = (ty_lower <= cy_upper && ty_lower >= cy_lower)
-                    || (ty_upper >= cy_lower && ty_upper <= cy_upper);
-            } else {
-                y_inbound = (cy_lower <= ty_upper && cy_lower >= ty_lower)
-                    || (cy_upper >= ty_lower && cy_upper <= ty_upper);
-            }
-
-            x_inbound && y_inbound && self.z == sp.z
-        } else if o.is_sprite() {
-            let x_inbound = o.pos().x >= self.x && o.pos().x <= self.x + self.width as i32;
-            let y_inbound = o.pos().y >= self.y && o.pos().y <= self.y + self.height as i32;
-            x_inbound && y_inbound && self.z == o.pos().z
-        } else {
-            todo!();
-        }
+        o_left < c_right && o_right > c_left && o_top < c_bot && o_bot > c_top && o_pos.z == self.z
     }
 
     pub fn resize(&mut self, w: u32, h: u32, d: u32) {
@@ -183,8 +148,8 @@ impl Camera {
 
     pub fn get_screen_pos(&self, obj_pos: Position3D<i32>) -> Position<i32> {
         Position {
-            x: obj_pos.x - self.x,
-            y: obj_pos.y - self.y,
+            x: (obj_pos.x + 1) - self.x,
+            y: (obj_pos.y + 1) - self.y,
         }
     }
 }

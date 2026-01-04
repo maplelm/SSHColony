@@ -13,18 +13,44 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
 use super::input::Event;
 use std::error;
 
-#[derive(Debug)]
-pub enum Error {
-    IO(std::io::Error),
-    SendEventError(std::sync::mpsc::SendError<Event>),
-    InvalidData(Box<dyn error::Error>),
-    RebuildRequired(Option<Box<dyn error::Error>>),
-    NotFound(String, Option<Box<dyn error::Error>>),
-    ContextError(String),
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ErrorKind {
+    #[serde(skip)]
+    Io(std::io::ErrorKind),
+    Network,
+    InvalidData,
+    RebuildRequired,
+    NotFound,
+    Context,
+    ContextDead,
+}
+
+impl std::fmt::Display for ErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Io(subkind) => write!(f, "IO({})", subkind),
+            Self::Network => write!(f, "Network"),
+            Self::InvalidData => write!(f, "Invalid Data"),
+            Self::RebuildRequired => write!(f, "Rebuild Required"),
+            Self::NotFound => write!(f, "Not Found"),
+            Self::Context => write!(f, "Context"),
+            Self::ContextDead => write!(f, "Context Dead"),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Error {
+    msg: String,
+    kind: ErrorKind,
+    #[serde(skip)]
+    source: Option<Box<dyn std::error::Error + 'static>>,
 }
 
 unsafe impl Send for Error {}
@@ -32,33 +58,36 @@ unsafe impl Sync for Error {}
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::IO(e) => write!(f, "IO Error: {}", e),
-            Error::InvalidData(d) => write!(f, "InvalidData: {}", d),
-            Error::RebuildRequired(d) => {
-                if d.is_some() {
-                    write!(f, "Rebuild Required: {}", d.as_ref().unwrap())
-                } else {
-                    write!(f, "Rebuild Required")
-                }
-            }
-            Error::NotFound(s, _) => write!(f, "Not Found: {}", s),
-            Error::ContextError(ctx) => write!(f, "Context Error: {}", ctx),
-            Error::SendEventError(e) => e.fmt(f),
-        }
+        write!(f, "{}: {}", self.kind, self.msg)
     }
 }
 
-impl error::Error for Error {
+impl std::error::Error for Error {
+    fn description(&self) -> &str {
+        &self.msg
+    }
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        match self {
-            Error::IO(e) => Some(e),
-            Error::ContextError(_) => None,
-            Error::InvalidData(d) => d.source(),
-            Error::RebuildRequired(d) => if d.is_some() {d.as_ref().unwrap().source()}else{None},
-            Error::NotFound(s, inner) => if inner.is_some() {inner.as_ref().unwrap().source()}else{None},
-            Error::SendEventError(e) => e.source(),
-        }
+        self.source.as_deref()
     }
 }
 
+impl Error {
+    pub fn new(msg: impl Into<String>, kind: ErrorKind) -> Self {
+        Self {
+            msg: msg.into(),
+            kind,
+            source: None
+        }
+    }
+
+    pub fn from<E>(err: E, msg: impl Into<String>, kind: ErrorKind) -> Self 
+    where
+        E: std::error::Error + Send + Sync + 'static,
+    {
+        Self {
+            msg: msg.into(),
+            kind,
+            source: Some(Box::new(err)),
+        }
+    }
+}

@@ -16,7 +16,10 @@ limitations under the License.
 
 #![deny(unused)]
 
-use crate::engine::render::Camera;
+use crate::engine::render::{Camera, GlyphType, ObjectData, TextType};
+#[allow(unused)]
+use std::fmt::Write;
+use std::io::{Stdout, Write as iowrite};
 
 use super::super::ui::style::CLEAR_COLORS;
 use super::super::{
@@ -26,7 +29,7 @@ use super::super::{
     types::{Position3D, SparseSet},
 };
 use super::{Canvas, Layer, Object, render_unit::*};
-use my_term::color::{Background, Color, Foreground};
+use my_term::color::{BLACK, Background, Foreground, WHITE};
 use std::{
     cell::RefCell,
     rc::{Rc, Weak},
@@ -38,6 +41,7 @@ use std::{
 // ##################
 type Grid = SparseSet<RenderUnit>;
 type DynRefList = Vec<Weak<RefCell<Object>>>;
+pub type RenderQueue = mpsc::Sender<RenderSignal>;
 
 // ############################
 // ## Main Loop For Renderer ##
@@ -47,8 +51,11 @@ pub fn render_thread(
     mut canvas: Canvas,
     rx: mpsc::Receiver<RenderSignal>,
     event_tx: mpsc::Sender<Event>,
+    lg: Arc<logging::Logger>,
 ) {
+    #[allow(unused)]
     let mut force_refresh: std::time::Instant = std::time::Instant::now();
+    #[allow(unused)]
     let tick_rate: std::time::Duration = std::time::Duration::from_millis(10);
     let mut bg_counter: usize = 1;
     let mut mg_counter: usize = 1;
@@ -63,8 +70,8 @@ pub fn render_thread(
     let mut foreground: Grid = SparseSet::new(1000);
     let mut ui: Grid = SparseSet::new(1000);
     let mut dynamics_list: DynRefList = Vec::new();
-    let mut foreground_color: Foreground = Foreground::new(Color::None);
-    let mut background_color: Background = Background::new(Color::None);
+    let mut foreground_color: Foreground = Foreground::new(WHITE);
+    let mut background_color: Background = Background::new(BLACK);
     let mut dirty: bool = true;
     let mut camera: Camera = Camera::new(canvas.width as u32, canvas.height as u32);
     let mut ui_camera: Camera = Camera::new(canvas.width as u32, canvas.height as u32);
@@ -93,17 +100,19 @@ pub fn render_thread(
             &mut background_color,
             &mut camera,
             &mut ui_camera,
+            lg.clone(),
         );
 
         // Managing Dynamic Sprites //
         clear_invalid_weak_refs(&mut dynamics_list, &mut dirty);
         update_dynamic_objects(&mut dynamics_list, &mut dirty);
 
+        /*
         if force_refresh.elapsed() >= tick_rate {
             dirty = true;
             force_refresh = std::time::Instant::now();
         }
-
+        */
         // Print State to Terminal Screen //
         if dirty {
             print(
@@ -116,6 +125,7 @@ pub fn render_thread(
                 &background_color,
                 &camera,
                 &ui_camera,
+                lg.clone(),
             );
             dirty = false;
         }
@@ -144,14 +154,34 @@ fn check_for_signals(
     bg_color: &mut Background,
     camera: &mut Camera,
     ui_camera: &mut Camera,
+    _lg: Arc<logging::Logger>,
 ) {
     for (i, msg) in rx.try_iter().enumerate() {
         if i == 0 {
             *dirty = true;
         }
         dispatch_msg(
-            msg, fg, mg, bg, ui, dyn_list, fg_counter, mg_counter, bg_counter, ui_counter, free_fg,
-            free_mg, free_bg, free_ui, event_tx, canvas, fg_color, bg_color, camera, ui_camera,
+            msg,
+            fg,
+            mg,
+            bg,
+            ui,
+            dyn_list,
+            fg_counter,
+            mg_counter,
+            bg_counter,
+            ui_counter,
+            free_fg,
+            free_mg,
+            free_bg,
+            free_ui,
+            event_tx,
+            canvas,
+            fg_color,
+            bg_color,
+            camera,
+            ui_camera,
+            _lg.clone(),
         );
     }
 }
@@ -176,22 +206,23 @@ fn dispatch_msg(
     bg_color: &mut Background,
     camera: &mut Camera,
     ui_camera: &mut Camera,
+    _lg: Arc<logging::Logger>,
 ) {
     match msg {
         RenderSignal::Batch(mut batch) => batch_msg(
             &mut batch, fg, mg, bg, ui, dyn_list, fg_counter, mg_counter, bg_counter, ui_counter,
             free_fg, free_mg, free_bg, free_ui, event_tx, canvas, fg_color, bg_color, camera,
-            ui_camera,
+            ui_camera, _lg,
         ),
         RenderSignal::Sequence(mut seq) => sequence_msg(
             &mut seq, fg, mg, bg, ui, dyn_list, fg_counter, mg_counter, bg_counter, ui_counter,
             free_fg, free_mg, free_bg, free_ui, event_tx, canvas, fg_color, bg_color, camera,
-            ui_camera,
+            ui_camera, _lg,
         ),
         RenderSignal::TermSizeChange(c, r) => term_size_change_msg(c, r, canvas, event_tx),
         RenderSignal::Insert(id_holder, new_obj) => insert(
             id_holder, new_obj, fg_counter, mg_counter, bg_counter, ui_counter, free_fg, free_mg,
-            free_bg, free_ui, fg, mg, bg, ui, dyn_list,
+            free_bg, free_ui, fg, mg, bg, ui, dyn_list, canvas,
         ),
         RenderSignal::Background(bg) => change_bg(bg, bg_color),
         RenderSignal::Foreground(fg) => change_fg(fg, fg_color),
@@ -207,10 +238,22 @@ fn dispatch_msg(
         RenderSignal::MoveLayer(id, layer) => move_layer(id, layer, fg, mg, bg, ui),
         RenderSignal::MoveCamera(pos) => camera.shift(pos.x, pos.y, pos.z),
         RenderSignal::PageUI(delta) => ui_camera.shift(0, (ui_camera.height() as i32) * delta, 0),
-        RenderSignal::ScrollUI(delta) => ui_camera.shift(0, delta, 0),
-        RenderSignal::ShiftUI(delta) => ui_camera.shift(delta, 0, 0),
+        RenderSignal::ScrollUI(delta) => {
+            let _ = _lg.write(
+                logging::LogLevel::Info,
+                format!("scrolling camera by: {}", delta),
+            );
+            ui_camera.shift(0, delta, 0)
+        }
+        RenderSignal::ShiftUI(delta) => {
+            let _ = _lg.write(
+                logging::LogLevel::Info,
+                format!("shifting camera by: {}", delta),
+            );
+            ui_camera.shift(delta, 0, 0);
+        }
         RenderSignal::SetCamera(pos) => camera.set_pos(pos.x, pos.y, pos.z),
-        RenderSignal::Update(id, obj) => update_object(id, obj, fg, mg, bg, ui),
+        RenderSignal::Update(id, obj) => update_object(id, obj, fg, mg, bg, ui, canvas),
     }
 }
 
@@ -225,24 +268,57 @@ fn print(
     bg_col: &Background,
     cam: &Camera,
     ui_cam: &Camera,
+    _lg: Arc<logging::Logger>,
 ) {
+    let mut count = 0;
+    let mut stdout = std::io::stdout();
     let col: String = format!("{}{}", &fg_col, &bg_col);
-    let mut output: String = format!("{CLEAR_COLORS}\x1b[2J");
-    print_layer(&mut output, bg, cam, can, &col);
-    print_layer(&mut output, mg, cam, can, &col);
-    print_layer(&mut output, fg, cam, can, &col);
-    print_layer(&mut output, ui, ui_cam, can, &col);
-    print!("{output}");
+    let _ = write!(stdout, "{CLEAR_COLORS}\x1b[2J");
+    let _ = stdout.flush();
+    print_layer(&mut stdout, bg, cam, can, &col, &mut count);
+    let _ = stdout.flush();
+    print_layer(&mut stdout, mg, cam, can, &col, &mut count);
+    let _ = stdout.flush();
+    print_layer(&mut stdout, fg, cam, can, &col, &mut count);
+    let _ = stdout.flush();
+    print_layer(&mut stdout, ui, ui_cam, can, &col, &mut count);
+    let _ = stdout.flush();
+    let _ = write!(
+        stdout,
+        "\x1b[{};0f|ui_cam:{},{},{},{} | cam:{},{},{},{} | Objects Rendered {}                   |",
+        can.height - 1,
+        ui_cam.x(),
+        ui_cam.y(),
+        ui_cam.width(),
+        ui_cam.height(),
+        cam.x(),
+        cam.y(),
+        cam.width(),
+        cam.height(),
+        count
+    );
+    let _ = stdout.flush();
 }
 
 // #####################
 // ## Print Functions ##
 // #####################
 //
-fn print_layer(out: &mut String, g: &Grid, cam: &Camera, can: &Canvas, col: &str) {
+fn print_layer(
+    stream: &mut Stdout,
+    g: &Grid,
+    cam: &Camera,
+    can: &Canvas,
+    col: &str,
+    count: &mut i32,
+) {
     for (k, _) in g.all_keys() {
-        let mut o = g.get(*k).unwrap().object.borrow_mut();
-        o.draw(can, cam, out, col);
+        g.get(*k)
+            .unwrap()
+            .object
+            .borrow_mut()
+            .draw(can, cam, stream, col);
+        *count += 1;
     }
 }
 
@@ -270,6 +346,7 @@ fn batch_msg(
     bg_color: &mut Background,
     camera: &mut Camera,
     ui_camera: &mut Camera,
+    _lg: Arc<logging::Logger>,
 ) {
     while messages.len() > 0 {
         dispatch_msg(
@@ -293,6 +370,7 @@ fn batch_msg(
             bg_color,
             camera,
             ui_camera,
+            _lg.clone(),
         );
     }
 }
@@ -318,6 +396,7 @@ fn sequence_msg(
     bg_color: &mut Background,
     camera: &mut Camera,
     ui_camera: &mut Camera,
+    _lg: Arc<logging::Logger>,
 ) {
     while messages.len() > 0 {
         dispatch_msg(
@@ -341,6 +420,7 @@ fn sequence_msg(
             bg_color,
             camera,
             ui_camera,
+            _lg.clone(),
         );
     }
 }
@@ -366,7 +446,7 @@ fn term_size_change_msg(cols: u32, rows: u32, canvas: &mut Canvas, event_tx: &mp
 
 fn insert(
     id_holder: Arc<RenderUnitId>,
-    object: Object,
+    data: ObjectData,
     fg_counter: &mut usize,
     mg_counter: &mut usize,
     bg_counter: &mut usize,
@@ -380,15 +460,17 @@ fn insert(
     bg: &mut Grid,
     ui: &mut Grid,
     dyn_list: &mut DynRefList,
+    canvas: &Canvas,
 ) {
     let ins = |set: &mut SparseSet<RenderUnit>,
                id_counter: &mut usize,
                free_ids: &mut Vec<usize>,
                id_holder: Arc<RenderUnitId>,
-               object: Object| {
+               data: ObjectData,
+               canvas: &Canvas| {
         let new_unit: RenderUnit = RenderUnit {
             id: id_holder,
-            object: Rc::new(RefCell::new(object)),
+            object: Rc::new(RefCell::new(Object::from_data(data, canvas))),
         };
         new_unit.id.store(if free_ids.len() > 0 {
             free_ids.swap_remove(0)
@@ -403,10 +485,11 @@ fn insert(
                    id_counter: &mut usize,
                    free_ids: &mut Vec<usize>,
                    id_holder: Arc<RenderUnitId>,
-                   object: Object| {
+                   data: ObjectData,
+                   canvas: &Canvas| {
         let new_unit: RenderUnit = RenderUnit {
             id: id_holder,
-            object: Rc::new(RefCell::new(object)),
+            object: Rc::new(RefCell::new(Object::from_data(data, canvas))),
         };
         new_unit.id.store(if free_ids.len() > 0 {
             free_ids.swap_remove(0)
@@ -418,24 +501,46 @@ fn insert(
         set.insert(new_unit.id.load(), new_unit);
     };
 
-    let is_dyn = match &object {
-        Object::Sprite(s) => s.is_dynamic(),
-        Object::Text(t) => t.is_dynamic(),
+    let is_dyn = match &data {
+        ObjectData::Sprite { pos: _, glyph } => match glyph {
+            GlyphType::Multi {
+                frames: _,
+                tick_rate: _,
+            } => true,
+            GlyphType::Single(_) => false,
+        },
+        ObjectData::Text {
+            pos: _,
+            data,
+            style: _,
+        } => match data {
+            TextType::Multi {
+                frames: _,
+                tick_rate: _,
+            } => true,
+            TextType::Single(_) => false,
+        },
     };
 
     if is_dyn {
         match id_holder.layer() {
-            Layer::Background => ins_dyn(dyn_list, bg, bg_counter, free_bg, id_holder, object),
-            Layer::Middleground => ins_dyn(dyn_list, mg, mg_counter, free_mg, id_holder, object),
-            Layer::Foreground => ins_dyn(dyn_list, fg, fg_counter, free_fg, id_holder, object),
-            Layer::Ui => ins_dyn(dyn_list, ui, ui_counter, free_ui, id_holder, object),
+            Layer::Background => {
+                ins_dyn(dyn_list, bg, bg_counter, free_bg, id_holder, data, canvas)
+            }
+            Layer::Middleground => {
+                ins_dyn(dyn_list, mg, mg_counter, free_mg, id_holder, data, canvas)
+            }
+            Layer::Foreground => {
+                ins_dyn(dyn_list, fg, fg_counter, free_fg, id_holder, data, canvas)
+            }
+            Layer::Ui => ins_dyn(dyn_list, ui, ui_counter, free_ui, id_holder, data, canvas),
         }
     } else {
         match id_holder.layer() {
-            Layer::Background => ins(bg, bg_counter, free_bg, id_holder, object),
-            Layer::Middleground => ins(mg, mg_counter, free_mg, id_holder, object),
-            Layer::Foreground => ins(fg, fg_counter, free_fg, id_holder, object),
-            Layer::Ui => ins(ui, ui_counter, free_ui, id_holder, object),
+            Layer::Background => ins(bg, bg_counter, free_bg, id_holder, data, canvas),
+            Layer::Middleground => ins(mg, mg_counter, free_mg, id_holder, data, canvas),
+            Layer::Foreground => ins(fg, fg_counter, free_fg, id_holder, data, canvas),
+            Layer::Ui => ins(ui, ui_counter, free_ui, id_holder, data, canvas),
         }
     }
 }
@@ -572,37 +677,38 @@ fn move_layer(
 
 fn update_object(
     id: Arc<RenderUnitId>,
-    object: Object,
+    data: ObjectData,
     fg: &mut Grid,
     mg: &mut Grid,
     bg: &mut Grid,
     ui: &mut Grid,
+    canvas: &Canvas,
 ) {
     match id.layer() {
         Layer::Background => {
             if let Some(unit) = bg.get(id.load()) {
-                *unit.object.borrow_mut() = object;
+                *unit.object.borrow_mut() = Object::from_data(data, canvas);
             } else {
                 // Log that there was a problem
             }
         }
         Layer::Middleground => {
             if let Some(unit) = mg.get(id.load()) {
-                *unit.object.borrow_mut() = object;
+                *unit.object.borrow_mut() = Object::from_data(data, canvas);
             } else {
                 // Log that there was a problem
             }
         }
         Layer::Foreground => {
             if let Some(unit) = fg.get(id.load()) {
-                *unit.object.borrow_mut() = object;
+                *unit.object.borrow_mut() = Object::from_data(data, canvas);
             } else {
                 // Log that there was a problem
             }
         }
         Layer::Ui => {
             if let Some(unit) = ui.get(id.load()) {
-                *unit.object.borrow_mut() = object
+                *unit.object.borrow_mut() = Object::from_data(data, canvas);
             } else {
                 // Log that there was a problem
             }

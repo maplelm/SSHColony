@@ -15,90 +15,99 @@ limitations under the License.
 */
 #![deny(unused)]
 
-use my_term::color::{Background, Foreground};
+use my_term::color::{BLUE, Background, Foreground, GREEN, MAGENTA};
 
 use crate::engine::{
-    enums::{RenderSignal, Signal},
+    Instance,
+    enums::{RenderSignal, SceneInitSignals, Signal},
     input::{Event, KeyEvent},
-    render::Canvas,
+    render::Text,
     traits::Scene,
     ui::{
-        SelectionDirection, Selector, SelectorItem, Textbox,
+        SelectionDirection, Selector, SelectorItem, TextArea,
         style::{self, MEDIUM_BLOCK},
     },
 };
 use logging::{ErrorKind as LogErrorKind, LogLevel};
-use std::sync::{
-    Arc,
-    mpsc::{Receiver, Sender},
-};
 
 #[derive(Debug)]
 pub struct CreateWorld {
-    world_name_input: Textbox,
+    world_name_input: TextArea,
     world_size_input: Selector,
-    world_height_delta_input: Textbox,
-    world_sea_level_input: Textbox,
+    world_height_delta_input: TextArea,
+    world_sea_level_input: TextArea,
     cursor: usize,
     init_complete: bool,
-    lg: Option<Arc<logging::Logger>>,
 }
 
 impl CreateWorld {
     pub fn new() -> Box<dyn Scene> {
         Box::new(Self {
             cursor: 0,
-            world_name_input: Textbox::new(0, 1, MEDIUM_BLOCK, Some(style::Style::default()), None),
+            world_name_input: TextArea::new(0, 1, MEDIUM_BLOCK, style::Style::default(), None),
             world_size_input: Selector::new(
                 0,
                 5,
                 style::Style::default(),
                 style::Coloring {
-                    foreground: Some(Foreground::green(true)),
-                    background: Some(Background::red(false)),
+                    foreground: Foreground::new(GREEN),
+                    background: Background::new(my_term::color::RED),
                 },
                 style::Coloring {
-                    foreground: Some(Foreground::blue(false)),
-                    background: Some(Background::magenta(true)),
+                    foreground: Foreground::new(BLUE),
+                    background: Background::new(MAGENTA),
                 },
                 SelectionDirection::Horizontal,
                 vec![
-                    SelectorItem::new("Small".to_string(), 0),
-                    SelectorItem::new("Medium".to_string(), 1),
-                    SelectorItem::new("Large".to_string(), 2),
+                    SelectorItem::new(
+                        Text::from(
+                            "Small",
+                            style::Style::default().fg(),
+                            style::Style::default().bg(),
+                        ),
+                        0,
+                    ),
+                    SelectorItem::new(
+                        Text::from(
+                            "Medium",
+                            style::Style::default().fg(),
+                            style::Style::default().bg(),
+                        ),
+                        1,
+                    ),
+                    SelectorItem::new(
+                        Text::from(
+                            "Large",
+                            style::Style::default().fg(),
+                            style::Style::default().bg(),
+                        ),
+                        2,
+                    ),
                 ],
             ),
-            world_height_delta_input: Textbox::new(
+            world_height_delta_input: TextArea::new(
                 0,
                 9,
                 MEDIUM_BLOCK,
-                Some(style::Style::default()),
+                style::Style::default(),
                 None,
             ),
-            world_sea_level_input: Textbox::new(
+            world_sea_level_input: TextArea::new(
                 0,
                 13,
                 MEDIUM_BLOCK,
-                Some(style::Style::default()),
+                style::Style::default(),
                 None,
             ),
             init_complete: false,
-            lg: None,
         })
     }
 }
 
 impl Scene for CreateWorld {
-    fn init(
-        &mut self,
-        render_tx: &Sender<RenderSignal>,
-        _signal: Option<Signal>,
-        _canvas: &Canvas,
-        lg: Arc<logging::Logger>,
-    ) -> Signal {
-        self.lg = Some(lg);
-        let lg = self.lg.as_ref().unwrap();
-        if let Err(e) = self.world_name_input.output(render_tx) {
+    fn init(&mut self, ins: &mut Instance, _sig: SceneInitSignals) -> Signal {
+        let lg = ins.logger.clone();
+        if let Err(e) = self.world_name_input.output(&ins.render_queue, &ins.canvas) {
             match lg.write(
                 LogLevel::Error,
                 format!("Error outputting World Name Input: {}", e),
@@ -110,7 +119,7 @@ impl Scene for CreateWorld {
                 Ok(_) => {}
             };
         }
-        if let Err(e) = self.world_size_input.output(render_tx) {
+        if let Err(e) = self.world_size_input.output(&ins.render_queue) {
             match lg.write(
                 LogLevel::Error,
                 format!("Error outputting World Size Input: {}", e),
@@ -122,7 +131,10 @@ impl Scene for CreateWorld {
                 },
             };
         }
-        if let Err(e) = self.world_sea_level_input.output(render_tx) {
+        if let Err(e) = self
+            .world_sea_level_input
+            .output(&ins.render_queue, &ins.canvas)
+        {
             match lg.write(
                 LogLevel::Error,
                 format!("Error outputting World Sea Level Input: {}", e),
@@ -134,7 +146,10 @@ impl Scene for CreateWorld {
                 },
             };
         }
-        if let Err(e) = self.world_height_delta_input.output(render_tx) {
+        if let Err(e) = self
+            .world_height_delta_input
+            .output(&ins.render_queue, &ins.canvas)
+        {
             match lg.write(
                 LogLevel::Error,
                 format!("Error outputting World delta Input: {}", e),
@@ -158,45 +173,47 @@ impl Scene for CreateWorld {
         false
     }
 
-    fn reset(&mut self) {}
+    fn reset(&mut self, _ins: &mut Instance) {}
 
-    fn resume(&mut self, render_tx: &Sender<RenderSignal>, _canvas: &Canvas) {
-        let _ = render_tx.send(RenderSignal::Clear);
-        if let Err(_e) = self.world_name_input.output(render_tx) {
+    fn resume(&mut self, ins: &mut Instance) {
+        let _ = ins.render_queue.send(RenderSignal::Clear);
+        if let Err(_e) = self.world_name_input.output(&ins.render_queue, &ins.canvas) {
             // Log the error
         }
-        if let Err(_e) = self.world_size_input.output(render_tx) {
+        if let Err(_e) = self.world_size_input.output(&ins.render_queue) {
             // Log the error
         }
-        if let Err(_e) = self.world_height_delta_input.output(render_tx) {
+        if let Err(_e) = self
+            .world_height_delta_input
+            .output(&ins.render_queue, &ins.canvas)
+        {
             // Log the error
         }
-        if let Err(_e) = self.world_sea_level_input.output(render_tx) {
+        if let Err(_e) = self
+            .world_sea_level_input
+            .output(&ins.render_queue, &ins.canvas)
+        {
             // Log the error
         }
     }
 
-    fn suspend(&mut self, render_tx: &Sender<RenderSignal>) {
-        let _ = render_tx.send(RenderSignal::Clear);
+    fn suspend(&mut self, ins: &mut Instance) {
+        let _ = ins.render_queue.send(RenderSignal::Clear);
     }
 
-    fn update(
-        &mut self,
-        _dt: f32,
-        event: &Receiver<Event>,
-        render_tx: &Sender<RenderSignal>,
-        canvas: &Canvas,
-    ) -> Signal {
+    fn update(&mut self, inst: &mut Instance, _dt: f32) -> Signal {
+        let canvas = &inst.canvas;
+        let lg = inst.logger.clone();
         let mut signals: Vec<Signal> = vec![];
-        for e in event.try_iter() {
+        let mut events = vec![];
+        for e in inst.event_recvier.try_iter() {
+            events.push(e);
+        }
+        for e in events {
             match e {
                 Event::Keyboard(key) => match key {
                     KeyEvent::Char('t') => {
-                        let _ = self
-                            .lg
-                            .as_ref()
-                            .unwrap()
-                            .write(LogLevel::Info, "Testing from Create World Scene");
+                        let _ = lg.write(LogLevel::Info, "Testing from Create World Scene");
                     }
                     KeyEvent::Char('q') => {
                         signals.push(Signal::Scenes(crate::engine::enums::SceneSignal::Pop))
@@ -211,7 +228,8 @@ impl Scene for CreateWorld {
             match self.cursor {
                 0 => match e {
                     Event::Keyboard(key) => {
-                        self.world_name_input.process_key(key, render_tx, canvas)
+                        self.world_name_input
+                            .process_key(key, &inst.render_queue, canvas)
                     }
                     _ => {}
                 },
@@ -225,15 +243,17 @@ impl Scene for CreateWorld {
                     _ => {}
                 },
                 2 => match e {
-                    Event::Keyboard(key) => self
-                        .world_height_delta_input
-                        .process_key(key, render_tx, canvas),
+                    Event::Keyboard(key) => {
+                        self.world_height_delta_input
+                            .process_key(key, &inst.render_queue, canvas)
+                    }
                     _ => {}
                 },
                 3 => match e {
-                    Event::Keyboard(key) => self
-                        .world_sea_level_input
-                        .process_key(key, render_tx, canvas),
+                    Event::Keyboard(key) => {
+                        self.world_sea_level_input
+                            .process_key(key, &inst.render_queue, canvas)
+                    }
                     _ => {}
                 },
                 _ => {}
