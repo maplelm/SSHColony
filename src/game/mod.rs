@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 mod scenes;
+mod testing;
 use scenes::InGame;
 use scenes::LoadGame;
 pub use scenes::MainMenu;

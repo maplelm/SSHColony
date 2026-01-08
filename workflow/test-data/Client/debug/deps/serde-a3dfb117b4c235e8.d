@@ -1,0 +1,14 @@
+/var/local/Developer/maplelm/TermRPG/Client/./workflow/test-data/Client/debug/deps/serde-a3dfb117b4c235e8.d: /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/lib.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/integer128.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/mod.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/de.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/ser.rs /var/local/Developer/maplelm/TermRPG/Client/./workflow/test-data/Client/debug/build/serde-baa3d076857704f3/out/private.rs
+
+/var/local/Developer/maplelm/TermRPG/Client/./workflow/test-data/Client/debug/deps/libserde-a3dfb117b4c235e8.rlib: /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/lib.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/integer128.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/mod.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/de.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/ser.rs /var/local/Developer/maplelm/TermRPG/Client/./workflow/test-data/Client/debug/build/serde-baa3d076857704f3/out/private.rs
+
+/var/local/Developer/maplelm/TermRPG/Client/./workflow/test-data/Client/debug/deps/libserde-a3dfb117b4c235e8.rmeta: /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/lib.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/integer128.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/mod.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/de.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/ser.rs /var/local/Developer/maplelm/TermRPG/Client/./workflow/test-data/Client/debug/build/serde-baa3d076857704f3/out/private.rs
+
+/home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/lib.rs:
+/home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/integer128.rs:
+/home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/mod.rs:
+/home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/de.rs:
+/home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/ser.rs:
+/var/local/Developer/maplelm/TermRPG/Client/./workflow/test-data/Client/debug/build/serde-baa3d076857704f3/out/private.rs:
+
+# env-dep:OUT_DIR=/var/local/Developer/maplelm/TermRPG/Client/./workflow/test-data/Client/debug/build/serde-baa3d076857704f3/out

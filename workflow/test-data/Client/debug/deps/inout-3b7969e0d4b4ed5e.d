@@ -1,0 +1,11 @@
+/var/local/Developer/maplelm/TermRPG/Client/./workflow/test-data/Client/debug/deps/inout-3b7969e0d4b4ed5e.d: /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inout-0.2.1/src/lib.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inout-0.2.1/src/errors.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inout-0.2.1/src/inout.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inout-0.2.1/src/inout_buf.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inout-0.2.1/src/reserved.rs
+
+/var/local/Developer/maplelm/TermRPG/Client/./workflow/test-data/Client/debug/deps/libinout-3b7969e0d4b4ed5e.rlib: /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inout-0.2.1/src/lib.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inout-0.2.1/src/errors.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inout-0.2.1/src/inout.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inout-0.2.1/src/inout_buf.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inout-0.2.1/src/reserved.rs
+
+/var/local/Developer/maplelm/TermRPG/Client/./workflow/test-data/Client/debug/deps/libinout-3b7969e0d4b4ed5e.rmeta: /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inout-0.2.1/src/lib.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inout-0.2.1/src/errors.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inout-0.2.1/src/inout.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inout-0.2.1/src/inout_buf.rs /home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inout-0.2.1/src/reserved.rs
+
+/home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inout-0.2.1/src/lib.rs:
+/home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inout-0.2.1/src/errors.rs:
+/home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inout-0.2.1/src/inout.rs:
+/home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inout-0.2.1/src/inout_buf.rs:
+/home/maplelm/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inout-0.2.1/src/reserved.rs:
